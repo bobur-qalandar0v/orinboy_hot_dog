@@ -17,7 +17,8 @@ from aiogram import Bot, Dispatcher, F
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import (KeyboardButton, Message, ReplyKeyboardMarkup,
+from aiogram.types import (CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup,
+                           KeyboardButton, Message, ReplyKeyboardMarkup,
                            ReplyKeyboardRemove, WebAppInfo)
 
 BOT_TOKEN = os.environ["BOT_TOKEN"]
@@ -31,6 +32,7 @@ dp = Dispatcher()
 
 db = sqlite3.connect(os.path.join(os.path.dirname(os.path.abspath(__file__)), "users.db"))
 db.execute("CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY, name TEXT, phone TEXT, address TEXT)")
+db.execute("CREATE TABLE IF NOT EXISTS pending(uid INTEGER PRIMARY KEY, total INTEGER)")
 db.commit()
 
 
@@ -162,6 +164,9 @@ async def on_order(message: Message):
         text += f"Izoh: {order['comment']}\n"
     text += f"Telegram: @{message.from_user.username or message.from_user.id}"
     await bot.send_message(ADMIN_CHAT_ID, text)
+    if by_card:
+        db.execute("INSERT OR REPLACE INTO pending VALUES (?,?)", (message.from_user.id, order["total"]))
+        db.commit()
 
     if by_card and CARD_NUMBER:
         await message.answer(
@@ -183,13 +188,53 @@ async def on_receipt(message: Message):
     user = get_user(message.from_user.id)
     if not user:
         return
-    caption = f"🧾 To'lov cheki\nIsm: {user['name']}\nTelefon: {user['phone']}"
-    await message.copy_to(ADMIN_CHAT_ID, caption=caption)
-    await message.answer("Chek qabul qilindi, rahmat! Operator to'lovni tasdiqlaydi.")
+    uid = message.from_user.id
+    row = db.execute("SELECT total FROM pending WHERE uid=?", (uid,)).fetchone()
+    expected = f"\nKutilgan summa: {fmt(row[0])}" if row else ""
+    caption = f"🧾 To'lov cheki\nIsm: {user['name']}\nTelefon: {user['phone']}{expected}"
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✅ Tasdiqlash", callback_data=f"pay:ok:{uid}")],
+        [InlineKeyboardButton(text="⚠️ Kam to'langan", callback_data=f"pay:less:{uid}"),
+         InlineKeyboardButton(text="❌ Noto'g'ri chek", callback_data=f"pay:bad:{uid}")],
+    ])
+    await message.copy_to(ADMIN_CHAT_ID, caption=caption, reply_markup=kb)
+    await message.answer("Chek qabul qilindi, rahmat! Operator to'lovni tekshirib, tasdiqlaydi.")
+
+
+REPLIES = {
+    "ok": ("✅ To'lovingiz tasdiqlandi, rahmat! Buyurtmangiz tayyorlanmoqda. 🌭",
+           "✅ Tasdiqlandi"),
+    "less": ("⚠️ O'tkazilgan summa yetarli emas. Iltimos, yetishmayotgan qismini o'tkazib, "
+             "yangi chekni shu chatga yuboring.",
+             "⚠️ Kam to'langan, mijozga xabar yuborildi"),
+    "bad": ("❌ Chekni tasdiqlab bo'lmadi. Iltimos, to'g'ri to'lov chekini qayta yuboring.",
+            "❌ Noto'g'ri chek, mijozga xabar yuborildi"),
+}
+
+
+@dp.callback_query(F.data.startswith("pay:"))
+async def on_pay_decision(callback: CallbackQuery):
+    if callback.message.chat.id != ADMIN_CHAT_ID:
+        await callback.answer()
+        return
+    _, action, uid = callback.data.split(":")
+    uid = int(uid)
+    to_user, status = REPLIES[action]
+    try:
+        await bot.send_message(uid, to_user)
+    except Exception:
+        await callback.answer("Mijozga xabar yuborib bo'lmadi (u botni bloklagan bo'lishi mumkin).",
+                              show_alert=True)
+        return
+    if action == "ok":
+        db.execute("DELETE FROM pending WHERE uid=?", (uid,))
+        db.commit()
+    await callback.message.edit_caption(caption=f"{callback.message.caption}\n\n{status}", reply_markup=None)
+    await callback.answer("Mijozga xabar yuborildi")
 
 
 async def main():
-    print("Bot ishga tushdi: v3 (to'lov turi bilan)")
+    print("Bot ishga tushdi: v4 (chek tasdiqlash tugmalari bilan)")
     await dp.start_polling(bot)
 
 
