@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="uz">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>O'rinboy Admin</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./admin.css" />
+  </head>
+  <body>
+    <header>
+      <h1>O'rinboy Admin</h1>
+      <nav id="nav">
+        <button data-t="dash" class="on">Statistika</button>
+        <button data-t="orders">
+          Buyurtmalar<span class="badge" id="newb" hidden>0</span>
+        </button>
+        <button data-t="users">Mijozlar</button>
+      </nav>
+    </header>
+    <main>
+      <section id="dash"></section>
+      <section id="orders" hidden></section>
+      <section id="users" hidden></section>
+    </main>
+    <div id="toast" role="status"></div>
+
+    <script src="./admin.js"></script>
+  </body>
+</html>

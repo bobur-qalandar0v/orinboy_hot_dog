@@ -8,11 +8,13 @@ Muhit o'zgaruvchilari: BOT_TOKEN, WEBAPP_URL, ADMIN_CHAT_ID
 import asyncio
 import html
 import json
+from datetime import datetime
 import os
 import re
 import sqlite3
 from urllib.parse import urlencode
 
+import admin
 from aiogram import Bot, Dispatcher, F
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
@@ -33,6 +35,7 @@ dp = Dispatcher()
 db = sqlite3.connect(os.path.join(os.path.dirname(os.path.abspath(__file__)), "users.db"))
 db.execute("CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY, name TEXT, phone TEXT, address TEXT)")
 db.execute("CREATE TABLE IF NOT EXISTS pending(uid INTEGER PRIMARY KEY, total INTEGER)")
+db.execute("CREATE TABLE IF NOT EXISTS orders(id INTEGER PRIMARY KEY AUTOINCREMENT, uid INTEGER, created TEXT, items TEXT, total INTEGER, pay TEXT, address TEXT, comment TEXT, status TEXT DEFAULT 'new')")
 db.commit()
 
 
@@ -155,8 +158,16 @@ async def on_order(message: Message):
     lines = "\n".join(f"• {i['name']} × {i['qty']} = {fmt(i['price'] * i['qty'])}" for i in order["items"])
     by_card = order.get("pay") == "card"
     pay_text = "💳 Kartaga o'tkazma (chek kutilmoqda)" if by_card else "💵 Naqd"
+    cur = db.execute(
+        "INSERT INTO orders(uid, created, items, total, pay, address, comment) VALUES (?,?,?,?,?,?,?)",
+        (message.from_user.id, datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+         json.dumps(order["items"], ensure_ascii=False), order["total"],
+         "card" if by_card else "cash", address, order.get("comment", "")),
+    )
+    db.commit()
+    oid = cur.lastrowid
     text = (
-        f"🆕 Yangi buyurtma\n\n{lines}\n\nJami: {fmt(order['total'])}\n"
+        f"🆕 Yangi buyurtma #{oid}\n\n{lines}\n\nJami: {fmt(order['total'])}\n"
         f"To'lov: {pay_text}\n"
         f"Ism: {user['name']}\nTelefon: {user['phone']}\nManzil: {address}\n"
     )
@@ -234,7 +245,8 @@ async def on_pay_decision(callback: CallbackQuery):
 
 
 async def main():
-    print("Bot ishga tushdi: v4 (chek tasdiqlash tugmalari bilan)")
+    print("Bot ishga tushdi: v5 (admin panel bilan)")
+    await admin.run(db, bot)
     await dp.start_polling(bot)
 
 
