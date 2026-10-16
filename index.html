@@ -1,0 +1,507 @@
+<!doctype html>
+<html lang="uz">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <title>O'rinboy Hotdog</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #fff4cc;
+        --card: #fffdf6;
+        --ink: #2a1a12;
+        --mute: #7a6455;
+        --red: #d62f1f;
+        --on-red: #fff;
+        --mustard: #f2b705;
+        --line: #ecd48a;
+        box-sizing: border-box;
+        padding-top: env(safe-area-inset-top, 0px);
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+      }
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme="light"]) {
+          --bg: #241710;
+          --card: #33221a;
+          --ink: #fff1d6;
+          --mute: #c4a88e;
+          --line: #55392b;
+        }
+      }
+      :root[data-theme="dark"] {
+        --bg: #241710;
+        --card: #33221a;
+        --ink: #fff1d6;
+        --mute: #c4a88e;
+        --line: #55392b;
+      }
+      html {
+        scroll-padding-top: env(safe-area-inset-top, 0px);
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font:
+          500 16px/1.4 "Bricolage Grotesque",
+          system-ui,
+          sans-serif;
+        padding-bottom: 96px;
+      }
+      main {
+        max-width: 520px;
+        margin: 0 auto;
+        padding: 0 16px;
+      }
+      h1 {
+        font-size: clamp(44px, 15vw, 72px);
+        line-height: 0.9;
+        font-weight: 800;
+        margin: 28px 0 6px;
+        letter-spacing: -0.03em;
+        color: var(--red);
+      }
+      .sub {
+        color: var(--mute);
+        margin: 0 0 20px;
+        text-align: center;
+      }
+      .logo {
+        display: block;
+        width: min(160px, 60%);
+        height: auto;
+        margin: 20px auto 12px;
+        background: #fff;
+        border-radius: 24px;
+        padding: 6px;
+      }
+      .cat {
+        font-size: 22px;
+        font-weight: 800;
+        margin: 24px 0 10px;
+        color: var(--ink);
+      }
+      .item small:empty {
+        display: none;
+      }
+      .item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        background: var(--card);
+        border: 2px solid var(--line);
+        border-radius: 14px;
+        padding: 14px;
+        margin-bottom: 10px;
+      }
+      .item .t {
+        flex: 1;
+      }
+      .item b {
+        display: block;
+        font-size: 18px;
+        font-weight: 700;
+      }
+      .item small {
+        color: var(--mute);
+        display: block;
+      }
+      .price {
+        font-weight: 700;
+        margin-top: 2px;
+      }
+      .step {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .step button {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        border: 2px solid var(--red);
+        background: transparent;
+        color: var(--red);
+        font: 700 20px/1 inherit;
+        cursor: pointer;
+      }
+      .step button.plus {
+        background: var(--red);
+        color: var(--on-red);
+      }
+      .step span {
+        min-width: 18px;
+        text-align: center;
+        font-weight: 700;
+      }
+      button:focus-visible,
+      input:focus-visible,
+      textarea:focus-visible {
+        outline: 3px solid var(--mustard);
+        outline-offset: 2px;
+      }
+      .bar {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: var(--red);
+        color: var(--on-red);
+        padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+      }
+      .bar-in {
+        max-width: 520px;
+        margin: 0 auto;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+      .bar button,
+      .cta {
+        background: var(--mustard);
+        color: #2a1a12;
+        border: 0;
+        border-radius: 12px;
+        font: 700 17px/1 inherit;
+        padding: 14px 20px;
+        cursor: pointer;
+      }
+      .bar button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .sum {
+        font-weight: 700;
+        font-size: 18px;
+      }
+      label {
+        display: block;
+        font-weight: 700;
+        margin: 14px 0 6px;
+      }
+      input,
+      textarea {
+        width: 100%;
+        font: inherit;
+        color: var(--ink);
+        background: var(--card);
+        border: 2px solid var(--line);
+        border-radius: 12px;
+        padding: 12px;
+      }
+      .row {
+        display: flex;
+        justify-content: space-between;
+        padding: 8px 0;
+        border-bottom: 1px dashed var(--line);
+      }
+      .back {
+        background: none;
+        border: 0;
+        color: var(--red);
+        font: 700 16px inherit;
+        padding: 16px 0 0;
+        cursor: pointer;
+      }
+      .err {
+        color: var(--red);
+        min-height: 20px;
+        margin: 8px 0 0;
+      }
+      .done {
+        text-align: center;
+        padding-top: 60px;
+      }
+      .done h2 {
+        font-size: 34px;
+        margin: 0 0 8px;
+      }
+      [hidden] {
+        display: none !important;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section id="menu">
+        <img
+          class="logo"
+          alt="O'rinboy Hotdog"
+          src="data:image/jpeg;base64,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"
+        />
+        <p class="sub">Tanlang, buyurtma bering. Yetkazib beramiz.</p>
+        <div id="list"></div>
+      </section>
+
+      <section id="checkout" hidden>
+        <button class="back" id="back">Menyuga qaytish</button>
+        <h1 style="font-size: 40px; margin-top: 12px">Buyurtmangiz</h1>
+        <div id="summary"></div>
+        <label for="name">Ismingiz</label>
+        <input id="name" autocomplete="name" />
+        <label for="phone">Telefon raqami</label>
+        <input
+          id="phone"
+          type="tel"
+          inputmode="tel"
+          placeholder="+998 90 123 45 67"
+          autocomplete="tel"
+        />
+        <label for="addr">Manzil</label>
+        <textarea id="addr" rows="2"></textarea>
+        <p class="err" id="err" role="alert"></p>
+        <button class="cta" id="send" style="width: 100%; margin-top: 8px">
+          Buyurtmani yuborish
+        </button>
+      </section>
+
+      <section id="done" class="done" hidden>
+        <h2>Buyurtma qabul qilindi</h2>
+        <p class="sub">Tez orada operator siz bilan bog'lanadi.</p>
+        <button class="cta" id="again">Yangi buyurtma</button>
+      </section>
+    </main>
+
+    <div class="bar" id="bar">
+      <div class="bar-in">
+        <div class="sum" id="total">0 so'm</div>
+        <button id="go" disabled>Savatni ko'rish</button>
+      </div>
+    </div>
+
+    <script>
+      const MENU = [
+        {
+          cat: "Sosiskali",
+          id: "s2",
+          name: "2x sosiska",
+          desc: "Faqat sosiska va chimchi",
+          price: 18000,
+        },
+        {
+          cat: "Sosiskali",
+          id: "s3",
+          name: "3x sosiska",
+          desc: "Faqat sosiska va chimchi",
+          price: 22000,
+        },
+        {
+          cat: "Sosiskali",
+          id: "s4",
+          name: "4x sosiska",
+          desc: "Faqat sosiska va chimchi",
+          price: 25000,
+        },
+        {
+          cat: "Sosiskali",
+          id: "s5",
+          name: "5x sosiska",
+          desc: "Faqat sosiska va chimchi",
+          price: 28000,
+        },
+        {
+          cat: "Ijjonli",
+          id: "i1",
+          name: "2x sosiska + ijjon",
+          desc: "",
+          price: 28000,
+        },
+        {
+          cat: "Ijjonli",
+          id: "i2",
+          name: "2x sosiska + 2x ijjon",
+          desc: "",
+          price: 35000,
+        },
+        {
+          cat: "Ijjonli",
+          id: "i3",
+          name: "3x sosiska + ijjon",
+          desc: "",
+          price: 35000,
+        },
+        {
+          cat: "Ijjonli",
+          id: "i4",
+          name: "3x sosiska + 2x ijjon",
+          desc: "",
+          price: 40000,
+        },
+        {
+          cat: "Ijjonli",
+          id: "i5",
+          name: "2x sosiska + ijjon + sir",
+          desc: "",
+          price: 35000,
+        },
+        {
+          cat: "Cheezdog",
+          id: "c1",
+          name: "Cheezdog",
+          desc: "Standart",
+          price: 35000,
+        },
+        {
+          cat: "Cheezdog",
+          id: "c2",
+          name: "Cheezdog",
+          desc: "Katta",
+          price: 40000,
+        },
+        {
+          cat: "Tushonkali",
+          id: "t2",
+          name: "Tushonkali 2x sosiska",
+          desc: "",
+          price: 35000,
+        },
+        {
+          cat: "Tushonkali",
+          id: "t3",
+          name: "Tushonkali 3x sosiska",
+          desc: "",
+          price: 40000,
+        },
+        {
+          cat: "Toshkent xot dog",
+          id: "tk1",
+          name: "Toshkent xot dog",
+          desc: "Go'sht assorti, standart",
+          price: 30000,
+        },
+        {
+          cat: "Toshkent xot dog",
+          id: "tk2",
+          name: "Toshkent xot dog",
+          desc: "Go'sht assorti, katta",
+          price: 35000,
+        },
+        {
+          cat: "Mangalga xot dog",
+          id: "m1",
+          name: "Mangalga xot dog sirniy katlet",
+          desc: "",
+          price: 45000,
+        },
+        {
+          cat: "Mangalga xot dog",
+          id: "m2",
+          name: "Mangalga xot dog shashlikli",
+          desc: "",
+          price: 35000,
+        },
+      ];
+      const cart = {};
+      const $ = (id) => document.getElementById(id);
+      const fmt = (n) =>
+        n.toLocaleString("ru-RU").replace(/\u00a0/g, " ") + " so'm";
+      const total = () =>
+        MENU.reduce((s, m) => s + (cart[m.id] || 0) * m.price, 0);
+      const count = () => Object.values(cart).reduce((a, b) => a + b, 0);
+
+      // Telegram Mini App (faqat Telegram ichida ochilganda yuklanadi)
+      let tg = null;
+      if (
+        location.hash.includes("tgWebAppData") ||
+        /tgWebApp/.test(location.search)
+      ) {
+        const s = document.createElement("script");
+        s.src = "https://telegram.org/js/telegram-web-app.js";
+        s.onload = () => {
+          tg = window.Telegram && Telegram.WebApp;
+          if (tg) {
+            tg.ready();
+            tg.expand();
+          }
+        };
+        document.head.appendChild(s);
+      }
+
+      function render() {
+        $("list").innerHTML = MENU.map(
+          (m, i) =>
+            (i === 0 || MENU[i - 1].cat !== m.cat
+              ? `<h2 class="cat">${m.cat}</h2>`
+              : "") +
+            `
+   <div class="item"><div class="t"><b>${m.name}</b><small>${m.desc}</small><div class="price">${fmt(m.price)}</div></div>
+   <div class="step">${cart[m.id] ? `<button data-d="-1" data-id="${m.id}" aria-label="Kamaytirish">−</button><span>${cart[m.id]}</span>` : ""}
+   <button class="plus" data-d="1" data-id="${m.id}" aria-label="${m.name} qo'shish">+</button></div></div>`,
+        ).join("");
+        $("total").textContent = fmt(total());
+        $("go").disabled = !count();
+      }
+      $("list").addEventListener("click", (e) => {
+        const b = e.target.closest("button");
+        if (!b) return;
+        const id = b.dataset.id;
+        cart[id] = Math.max(0, (cart[id] || 0) + Number(b.dataset.d));
+        if (!cart[id]) delete cart[id];
+        render();
+      });
+      function show(v) {
+        ["menu", "checkout", "done"].forEach((x) => ($(x).hidden = x !== v));
+        $("bar").hidden = v !== "menu";
+        scrollTo(0, 0);
+      }
+      $("go").onclick = () => {
+        $("summary").innerHTML =
+          MENU.filter((m) => cart[m.id])
+            .map(
+              (m) =>
+                `<div class="row"><span>${m.name} × ${cart[m.id]}</span><span>${fmt(m.price * cart[m.id])}</span></div>`,
+            )
+            .join("") +
+          `<div class="row"><b>Jami</b><b>${fmt(total())}</b></div>`;
+        show("checkout");
+      };
+      $("back").onclick = () => show("menu");
+      $("again").onclick = () => {
+        for (const k in cart) delete cart[k];
+        render();
+        show("menu");
+      };
+      $("send").onclick = () => {
+        const name = $("name").value.trim(),
+          phone = $("phone").value.trim(),
+          addr = $("addr").value.trim();
+        if (!name || phone.replace(/\D/g, "").length < 9 || !addr) {
+          $("err").textContent = "Ism, telefon raqami va manzilni to'ldiring.";
+          return;
+        }
+        $("err").textContent = "";
+        const order = {
+          name,
+          phone,
+          address: addr,
+          total: total(),
+          items: MENU.filter((m) => cart[m.id]).map((m) => ({
+            id: m.id,
+            name: m.name,
+            qty: cart[m.id],
+            price: m.price,
+          })),
+        };
+        if (tg && tg.sendData) {
+          tg.sendData(JSON.stringify(order));
+        } // botga yuboradi va oynani yopadi
+        else {
+          console.log(order);
+          show("done");
+        }
+      };
+      render();
+      show("menu");
+    </script>
+  </body>
+</html>
