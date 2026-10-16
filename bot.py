@@ -189,6 +189,7 @@ async def on_receipt(message: Message):
 
 
 async def main():
+    print("Bot ishga tushdi: v3 (to'lov turi bilan)")
     await dp.start_polling(bot)
 
 
