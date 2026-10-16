@@ -93,12 +93,12 @@ main {
   align-items: center;
   gap: 8px;
   overflow-x: auto;
-  padding: 9px 10px;
-  margin: 4px 0 6px;
-  background: var(--card);
-  border: 2px solid var(--ink);
-  border-radius: 18px;
-  box-shadow: 3px 3px 0 var(--sh);
+  padding: 10px;
+  margin-right: -3px;
+  background: var(--bg);
+  /* border: 2px solid var(--ink); */
+  /* border-radius: 18px; */
+  /* box-shadow: 3px 3px 0 var(--sh); */
   scrollbar-width: none;
 }
 .chips::-webkit-scrollbar {
