@@ -1,21 +1,23 @@
 """
-Hotdog buyurtma boti (aiogram 3).
+O'rinboy Hotdog buyurtma boti (aiogram 3).
+Mijoz /start bosganda ism, telefon va manzilni bir marta kiritadi (users.db ga saqlanadi).
+Keyingi buyurtmalarda ma'lumot qayta so'ralmaydi.
 
-O'rnatish:   pip install aiogram
-Ishga tushirish:
-    export BOT_TOKEN="BotFather bergan token"
-    export WEBAPP_URL="https://sizning-domen.uz/index.html"   # HTTPS bo'lishi shart
-    export ADMIN_CHAT_ID="123456789"                         # buyurtmalar keladigan chat ID
-    python bot.py
+Muhit o'zgaruvchilari: BOT_TOKEN, WEBAPP_URL, ADMIN_CHAT_ID
 """
 import asyncio
 import json
 import os
+import re
+import sqlite3
+from urllib.parse import urlencode
 
 from aiogram import Bot, Dispatcher, F
-from aiogram.filters import Command
+from aiogram.filters import Command, CommandStart
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import (KeyboardButton, Message, ReplyKeyboardMarkup,
-                           WebAppInfo)
+                           ReplyKeyboardRemove, WebAppInfo)
 
 BOT_TOKEN = os.environ["BOT_TOKEN"]
 WEBAPP_URL = os.environ["WEBAPP_URL"]
@@ -24,40 +26,135 @@ ADMIN_CHAT_ID = int(os.environ["ADMIN_CHAT_ID"])
 bot = Bot(BOT_TOKEN)
 dp = Dispatcher()
 
+db = sqlite3.connect(os.path.join(os.path.dirname(os.path.abspath(__file__)), "users.db"))
+db.execute("CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY, name TEXT, phone TEXT, address TEXT)")
+db.commit()
 
-def fmt(n: int) -> str:
+
+def get_user(uid):
+    row = db.execute("SELECT name, phone, address FROM users WHERE id=?", (uid,)).fetchone()
+    return dict(zip(("name", "phone", "address"), row)) if row else None
+
+
+def save_user(uid, name, phone, address):
+    db.execute("INSERT OR REPLACE INTO users VALUES (?,?,?,?)", (uid, name, phone, address))
+    db.commit()
+
+
+def fmt(n):
     return f"{n:,}".replace(",", " ") + " so'm"
 
 
-@dp.message(Command("start"))
-async def start(message: Message):
-    # Eslatma: sendData faqat ReplyKeyboard'dagi WebApp tugmasi bilan ishlaydi
-    kb = ReplyKeyboardMarkup(
-        keyboard=[[KeyboardButton(text="🌭 Buyurtma berish",
-                                  web_app=WebAppInfo(url=WEBAPP_URL))]],
+def menu_kb(user):
+    sep = "&" if "?" in WEBAPP_URL else "?"
+    url = WEBAPP_URL + sep + urlencode({"n": user["name"].split()[0], "a": user["address"]})
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="🌭 Buyurtma berish", web_app=WebAppInfo(url=url))],
+            [KeyboardButton(text="👤 Ma'lumotlarim")],
+        ],
         resize_keyboard=True,
     )
-    await message.answer(
-        "Salom! O'rinboy Hotdog botiga xush kelibsiz. Buyurtma berish uchun pastdagi tugmani bosing.",
-        reply_markup=kb,
+
+
+class Reg(StatesGroup):
+    name = State()
+    phone = State()
+    address = State()
+
+
+async def ask_name(message: Message, state: FSMContext):
+    await state.set_state(Reg.name)
+    await message.answer("Ism va familiyangizni yozing:", reply_markup=ReplyKeyboardRemove())
+
+
+@dp.message(CommandStart())
+async def start(message: Message, state: FSMContext):
+    await state.clear()
+    user = get_user(message.from_user.id)
+    if user:
+        await message.answer(f"Salom, {user['name']}! Buyurtma berish uchun tugmani bosing.",
+                             reply_markup=menu_kb(user))
+    else:
+        await message.answer("Salom! O'rinboy Hotdog botiga xush kelibsiz. "
+                             "Buyurtma berish uchun avval qisqa ro'yxatdan o'tamiz (bir marta).")
+        await ask_name(message, state)
+
+
+@dp.message(Command("yangilash"))
+async def update_profile(message: Message, state: FSMContext):
+    await ask_name(message, state)
+
+
+@dp.message(F.text == "👤 Ma'lumotlarim")
+async def my_info(message: Message):
+    user = get_user(message.from_user.id)
+    if not user:
+        await message.answer("Avval /start bosing.")
+        return
+    await message.answer(f"Ism: {user['name']}\nTelefon: {user['phone']}\nManzil: {user['address']}\n\n"
+                         "O'zgartirish uchun /yangilash ni bosing.")
+
+
+@dp.message(Reg.name, F.text)
+async def reg_name(message: Message, state: FSMContext):
+    name = message.text.strip()
+    if len(name) < 3:
+        await message.answer("Iltimos, ism va familiyangizni to'liq yozing.")
+        return
+    await state.update_data(name=name)
+    await state.set_state(Reg.phone)
+    kb = ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton(text="📱 Raqamimni yuborish", request_contact=True)]],
+        resize_keyboard=True, one_time_keyboard=True,
     )
+    await message.answer("Telefon raqamingizni yuboring (tugmani bosing yoki o'zingiz yozing):", reply_markup=kb)
+
+
+@dp.message(Reg.phone)
+async def reg_phone(message: Message, state: FSMContext):
+    raw = message.contact.phone_number if message.contact else (message.text or "")
+    digits = re.sub(r"\D", "", raw)
+    if len(digits) == 9:
+        digits = "998" + digits
+    if len(digits) != 12 or not digits.startswith("998"):
+        await message.answer("Raqam noto'g'ri. Masalan: +998 90 123 45 67")
+        return
+    await state.update_data(phone="+" + digits)
+    await state.set_state(Reg.address)
+    await message.answer("Yetkazish manzilingizni yozing (ko'cha, uy, mo'ljal):", reply_markup=ReplyKeyboardRemove())
+
+
+@dp.message(Reg.address, F.text)
+async def reg_address(message: Message, state: FSMContext):
+    address = message.text.strip()
+    if len(address) < 3:
+        await message.answer("Manzilni to'liqroq yozing.")
+        return
+    data = await state.get_data()
+    save_user(message.from_user.id, data["name"], data["phone"], address)
+    await state.clear()
+    user = get_user(message.from_user.id)
+    await message.answer("Rahmat, ro'yxatdan o'tdingiz! Endi buyurtma berishingiz mumkin.",
+                         reply_markup=menu_kb(user))
 
 
 @dp.message(F.web_app_data)
 async def on_order(message: Message):
+    user = get_user(message.from_user.id)
+    if not user:
+        await message.answer("Avval /start orqali ro'yxatdan o'ting.")
+        return
     order = json.loads(message.web_app_data.data)
-    lines = "\n".join(
-        f"• {i['name']} × {i['qty']} = {fmt(i['price'] * i['qty'])}"
-        for i in order["items"]
-    )
+    address = order.get("address") or user["address"]
+    lines = "\n".join(f"• {i['name']} × {i['qty']} = {fmt(i['price'] * i['qty'])}" for i in order["items"])
     text = (
-        f"🆕 Yangi buyurtma\n\n{lines}\n\n"
-        f"Jami: {fmt(order['total'])}\n"
-        f"Ism: {order['name']}\n"
-        f"Telefon: {order['phone']}\n"
-        f"Manzil: {order['address']}\n"
-        f"Telegram: @{message.from_user.username or message.from_user.id}"
+        f"🆕 Yangi buyurtma\n\n{lines}\n\nJami: {fmt(order['total'])}\n"
+        f"Ism: {user['name']}\nTelefon: {user['phone']}\nManzil: {address}\n"
     )
+    if order.get("comment"):
+        text += f"Izoh: {order['comment']}\n"
+    text += f"Telegram: @{message.from_user.username or message.from_user.id}"
     await bot.send_message(ADMIN_CHAT_ID, text)
     await message.answer("Buyurtmangiz qabul qilindi! Tez orada bog'lanamiz. 🌭")
 
