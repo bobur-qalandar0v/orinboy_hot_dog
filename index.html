@@ -11,6 +11,7 @@
       href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700;800&display=swap"
       rel="stylesheet"
     />
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
       :root {
         --bg: #fff4cc;
@@ -409,22 +410,12 @@
         MENU.reduce((s, m) => s + (cart[m.id] || 0) * m.price, 0);
       const count = () => Object.values(cart).reduce((a, b) => a + b, 0);
 
-      // Telegram Mini App (faqat Telegram ichida ochilganda yuklanadi)
-      let tg = null;
-      if (
-        location.hash.includes("tgWebAppData") ||
-        /tgWebApp/.test(location.search)
-      ) {
-        const s = document.createElement("script");
-        s.src = "https://telegram.org/js/telegram-web-app.js";
-        s.onload = () => {
-          tg = window.Telegram && Telegram.WebApp;
-          if (tg) {
-            tg.ready();
-            tg.expand();
-          }
-        };
-        document.head.appendChild(s);
+      // Telegram Mini App
+      const W = window.Telegram && Telegram.WebApp;
+      const tg = W && W.platform && W.platform !== "unknown" ? W : null;
+      if (tg) {
+        tg.ready();
+        tg.expand();
       }
 
       function render() {
