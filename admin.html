@@ -1,0 +1,779 @@
+<!doctype html>
+<html lang="uz">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>O'rinboy Admin</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #fff1c2;
+        --card: #fffdf6;
+        --ink: #3a1c0d;
+        --mute: #85685a;
+        --red: #d62f1f;
+        --mustard: #f2b705;
+        --green: #2f7d4f;
+        --blue: #2b6cb0;
+        --sh: #3a1c0d;
+        --line: #e3c97a;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #1f130c;
+          --card: #34211a;
+          --ink: #fff1d6;
+          --mute: #c4a88e;
+          --sh: #0d0704;
+          --line: #5a3a2b;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font:
+          500 15px/1.45 "Bricolage Grotesque",
+          system-ui,
+          sans-serif;
+      }
+      button {
+        font: inherit;
+        color: inherit;
+      }
+      header {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 12px;
+        padding: 14px 20px;
+        background: var(--red);
+        color: #fff;
+        border-bottom: 3px solid var(--ink);
+        position: sticky;
+        top: 0;
+        z-index: 5;
+      }
+      header h1 {
+        margin: 0;
+        font-size: 22px;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        margin-right: auto;
+      }
+      nav {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      nav button {
+        border: 2px solid var(--ink);
+        background: var(--card);
+        color: var(--ink);
+        border-radius: 99px;
+        padding: 7px 16px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      nav button.on {
+        background: var(--mustard);
+        color: #3a1c0d;
+      }
+      .badge {
+        background: var(--red);
+        color: #fff;
+        border-radius: 99px;
+        padding: 0 7px;
+        margin-left: 6px;
+        font-size: 12px;
+      }
+      main {
+        max-width: 1150px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      .grid {
+        display: grid;
+        gap: 14px;
+      }
+      .cards {
+        grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+        margin-bottom: 14px;
+      }
+      .two {
+        grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+        margin-bottom: 14px;
+      }
+      .card {
+        background: var(--card);
+        border: 2px solid var(--ink);
+        border-radius: 16px;
+        padding: 16px;
+        box-shadow: 4px 4px 0 var(--sh);
+      }
+      .card h3 {
+        margin: 0 0 12px;
+        font-size: 17px;
+        font-weight: 800;
+      }
+      .stat .l {
+        color: var(--mute);
+        font-weight: 700;
+        font-size: 13px;
+      }
+      .stat .v {
+        font-size: 26px;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        line-height: 1.15;
+      }
+      .stat .s {
+        color: var(--mute);
+        font-size: 13px;
+      }
+      .bars {
+        display: flex;
+        align-items: flex-end;
+        gap: 5px;
+        height: 150px;
+      }
+      .bars .c {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        align-items: center;
+        height: 100%;
+        min-width: 0;
+      }
+      .bar {
+        width: 100%;
+        background: var(--red);
+        border: 2px solid var(--ink);
+        border-radius: 6px 6px 0 0;
+        min-height: 2px;
+        transform-origin: bottom;
+        animation: grow 0.7s cubic-bezier(0.2, 1.2, 0.4, 1) both;
+      }
+      .bar.m {
+        background: var(--mustard);
+      }
+      @keyframes grow {
+        from {
+          transform: scaleY(0);
+        }
+      }
+      .lbl {
+        font-size: 10px;
+        color: var(--mute);
+        margin-top: 4px;
+        white-space: nowrap;
+      }
+      .hb {
+        display: grid;
+        grid-template-columns: minmax(110px, 1.3fr) 3fr auto;
+        gap: 10px;
+        align-items: center;
+        margin-bottom: 9px;
+        font-size: 14px;
+      }
+      .hb .n {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-weight: 700;
+      }
+      .hb .t {
+        height: 16px;
+        background: color-mix(in srgb, var(--mustard) 25%, transparent);
+        border-radius: 99px;
+        overflow: hidden;
+        border: 2px solid var(--ink);
+      }
+      .hb .t i {
+        display: block;
+        height: 100%;
+        background: var(--red);
+        animation: wid 0.8s ease both;
+      }
+      @keyframes wid {
+        from {
+          width: 0 !important;
+        }
+      }
+      .split {
+        display: flex;
+        height: 26px;
+        border: 2px solid var(--ink);
+        border-radius: 99px;
+        overflow: hidden;
+        margin: 6px 0 10px;
+      }
+      .split i {
+        display: block;
+        height: 100%;
+      }
+      .tablewrap {
+        overflow-x: auto;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        min-width: 640px;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 10px 12px;
+        border-bottom: 2px dashed var(--line);
+      }
+      th {
+        font-size: 13px;
+        color: var(--mute);
+      }
+      input[type="search"] {
+        width: 100%;
+        max-width: 340px;
+        padding: 10px 14px;
+        border: 2px solid var(--ink);
+        border-radius: 12px;
+        background: var(--card);
+        color: var(--ink);
+        font: inherit;
+        margin-bottom: 12px;
+      }
+      .chips {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-bottom: 14px;
+      }
+      .chips button {
+        border: 2px solid var(--ink);
+        background: var(--card);
+        border-radius: 99px;
+        padding: 6px 14px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      .chips button.on {
+        background: var(--mustard);
+        color: #3a1c0d;
+      }
+      .order {
+        margin-bottom: 14px;
+      }
+      .oh {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 14px;
+        align-items: center;
+        margin-bottom: 8px;
+      }
+      .oh b {
+        font-size: 18px;
+      }
+      .tag {
+        display: inline-block;
+        border: 2px solid var(--ink);
+        border-radius: 99px;
+        padding: 1px 10px;
+        font-size: 12px;
+        font-weight: 800;
+        background: var(--card);
+      }
+      .s-new {
+        background: var(--mustard);
+        color: #3a1c0d;
+      }
+      .s-cooking {
+        background: #f6a35c;
+        color: #3a1c0d;
+      }
+      .s-delivering {
+        background: #8cc4f2;
+        color: #3a1c0d;
+      }
+      .s-done {
+        background: #8fd3a5;
+        color: #3a1c0d;
+      }
+      .s-cancelled {
+        background: #e6a29b;
+        color: #3a1c0d;
+      }
+      .oi {
+        margin: 6px 0 10px;
+        padding-left: 18px;
+      }
+      .act {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .act button {
+        border: 2px solid var(--ink);
+        background: var(--card);
+        border-radius: 10px;
+        padding: 6px 12px;
+        font-weight: 700;
+        cursor: pointer;
+        box-shadow: 2px 2px 0 var(--sh);
+      }
+      .act button:active {
+        transform: translate(1px, 1px);
+        box-shadow: 1px 1px 0 var(--sh);
+      }
+      .act button[disabled] {
+        opacity: 0.4;
+        cursor: default;
+      }
+      .muted {
+        color: var(--mute);
+      }
+      #toast {
+        position: fixed;
+        left: 50%;
+        bottom: 24px;
+        transform: translate(-50%, 120px);
+        background: var(--ink);
+        color: var(--bg);
+        padding: 10px 18px;
+        border-radius: 12px;
+        font-weight: 700;
+        transition: transform 0.35s cubic-bezier(0.2, 1.3, 0.4, 1);
+        z-index: 9;
+      }
+      #toast.show {
+        transform: translate(-50%, 0);
+      }
+      .mrow {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px 14px;
+        padding: 10px 0;
+        border-bottom: 2px dashed var(--line);
+      }
+      .mrow:last-child {
+        border-bottom: 0;
+      }
+      .mrow .mn {
+        flex: 1;
+        min-width: 200px;
+      }
+      .mrow .mp {
+        font-weight: 800;
+      }
+      .mrow.sold .mn {
+        opacity: 0.5;
+        text-decoration: line-through;
+      }
+      dialog {
+        border: 2px solid var(--ink);
+        border-radius: 16px;
+        background: var(--card);
+        color: var(--ink);
+        padding: 20px;
+        width: min(420px, 92vw);
+        box-shadow: 5px 5px 0 var(--sh);
+      }
+      dialog::backdrop {
+        background: rgba(0, 0, 0, 0.45);
+      }
+      dialog h3 {
+        margin: 0 0 6px;
+      }
+      dialog label {
+        display: block;
+        font-weight: 700;
+        margin-top: 12px;
+      }
+      dialog input {
+        width: 100%;
+        padding: 10px 12px;
+        border: 2px solid var(--ink);
+        border-radius: 10px;
+        background: var(--bg);
+        color: var(--ink);
+        font: inherit;
+        margin-top: 4px;
+      }
+      [hidden] {
+        display: none !important;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>O'rinboy Admin</h1>
+      <nav id="nav">
+        <button data-t="dash" class="on">Statistika</button>
+        <button data-t="orders">
+          Buyurtmalar<span class="badge" id="newb" hidden>0</span>
+        </button>
+        <button data-t="users">Mijozlar</button>
+        <button data-t="menu">Menyu</button>
+      </nav>
+    </header>
+    <main>
+      <section id="dash"></section>
+      <section id="orders" hidden></section>
+      <section id="users" hidden></section>
+      <section id="menu" hidden></section>
+    </main>
+    <div id="toast" role="status"></div>
+    <dialog id="dlg">
+      <form id="mf">
+        <h3 id="dt">Yangi mahsulot</h3>
+        <label>Bo'lim<input id="fc" list="dc" required maxlength="40" /></label
+        ><datalist id="dc"></datalist>
+        <label>Nomi<input id="fn" required maxlength="80" /></label>
+        <label>Tavsif (ixtiyoriy)<input id="fd" maxlength="120" /></label>
+        <label
+          >Narxi (so'm)<input
+            id="fp"
+            type="number"
+            min="1000"
+            step="500"
+            required
+        /></label>
+        <div class="act" style="margin-top: 14px">
+          <button type="submit">Saqlash</button
+          ><button type="button" id="cancelm">Bekor</button>
+        </div>
+      </form>
+    </dialog>
+
+    <script>
+      const $ = (s) => document.querySelector(s);
+      const fmt = (n) =>
+        Number(n || 0)
+          .toLocaleString("ru-RU")
+          .replace(/\u00a0/g, " ") + " so'm";
+      const esc = (s) =>
+        String(s ?? "").replace(
+          /[&<>"']/g,
+          (c) =>
+            ({
+              "&": "&amp;",
+              "<": "&lt;",
+              ">": "&gt;",
+              '"': "&quot;",
+              "'": "&#39;",
+            })[c],
+        );
+      const ST = {
+        new: "Yangi",
+        cooking: "Tayyorlanmoqda",
+        delivering: "Yo'lda",
+        done: "Yetkazildi",
+        cancelled: "Bekor qilingan",
+      };
+      const MON = [
+        "yan",
+        "fev",
+        "mar",
+        "apr",
+        "may",
+        "iyn",
+        "iyl",
+        "avg",
+        "sen",
+        "okt",
+        "noy",
+        "dek",
+      ];
+      let S = null,
+        U = [],
+        O = [],
+        M = [],
+        filter = "all",
+        tab = "dash",
+        q = "",
+        editId = null;
+      const NEXT = {
+        new: ["cooking", "cancelled"],
+        cooking: ["delivering", "cancelled"],
+        delivering: ["done", "cancelled"],
+        done: [],
+        cancelled: [],
+      };
+      const post = (u, method, body) =>
+        api(u, {
+          method,
+          headers: { "Content-Type": "application/json", "X-Admin": "1" },
+          body: body ? JSON.stringify(body) : undefined,
+        });
+
+      async function api(u, o) {
+        const r = await fetch(u, o);
+        if (!r.ok) throw new Error(r.status);
+        return r.json();
+      }
+      function toast(t) {
+        const e = $("#toast");
+        e.textContent = t;
+        e.classList.add("show");
+        clearTimeout(toast.t);
+        toast.t = setTimeout(() => e.classList.remove("show"), 2600);
+      }
+      const stat = (l, v, s = "") =>
+        `<div class="card stat"><div class="l">${l}</div><div class="v">${v}</div><div class="s">${s}</div></div>`;
+
+      function dash() {
+        const d = S.daily,
+          mx = Math.max(1, ...d.map((x) => x.revenue)),
+          hm = Math.max(1, ...S.hours);
+        const pm = Math.max(1, ...S.products.map((p) => p.qty)),
+          tot = S.pay.cash + S.pay.card || 1;
+        const cp = Math.round((S.pay.cash / tot) * 100);
+        const top = U.filter((u) => u.orders > 0).slice(0, 5);
+        $("#dash").innerHTML = `
+  <div class="grid cards">
+    ${stat("Bugun", S.today_orders + " ta", fmt(S.today_revenue))}
+    ${stat("Jami tushum", fmt(S.revenue), S.orders + " ta buyurtma")}
+    ${stat("O'rtacha chek", fmt(S.avg))}
+    ${stat("Mijozlar", S.users + " ta", "ro'yxatdan o'tgan")}
+    ${stat("Yangi buyurtma", S.new + " ta", "javob kutmoqda")}
+    ${stat("Mijoz bahosi", S.rating_count ? "⭐ " + S.rating_avg : "—", S.rating_count + " ta baho")}
+  </div>
+  <div class="grid two">
+    <div class="card"><h3>So'nggi 14 kun (tushum)</h3><div class="bars">${d
+      .map((x) => {
+        const dt = x.d.split("-");
+        return `<div class="c" title="${x.d}: ${x.orders} ta, ${fmt(x.revenue)}"><div class="bar" style="height:${(x.revenue / mx) * 100}%"></div><div class="lbl">${+dt[2]}</div></div>`;
+      })
+      .join("")}</div></div>
+    <div class="card"><h3>Qaysi soatda ko'p buyurtma</h3><div class="bars">${S.hours.map((h, i) => `<div class="c" title="${i}:00 — ${h} ta"><div class="bar m" style="height:${(h / hm) * 100}%"></div><div class="lbl">${i % 3 === 0 ? i : ""}</div></div>`).join("")}</div></div>
+  </div>
+  <div class="grid two">
+    <div class="card"><h3>Eng ko'p buyurtma qilingan xot-doglar</h3>${
+      S.products.length
+        ? S.products
+            .slice(0, 8)
+            .map(
+              (p) =>
+                `<div class="hb"><div class="n" title="${esc(p.name)}">${esc(p.name)}</div><div class="t"><i style="width:${(p.qty / pm) * 100}%"></i></div><div><b>${p.qty}</b> <span class="muted">ta</span></div></div>`,
+            )
+            .join("")
+        : "<p class=\"muted\">Hozircha ma'lumot yo'q.</p>"
+    }</div>
+    <div class="card"><h3>To'lov turi</h3>
+      <div class="split"><i style="width:${cp}%;background:var(--mustard)"></i><i style="width:${100 - cp}%;background:var(--blue)"></i></div>
+      <div>💵 Naqd: <b>${S.pay.cash}</b> ta (${cp}%)</div><div>💳 Karta: <b>${S.pay.card}</b> ta (${100 - cp}%)</div>
+      <h3 style="margin-top:18px">Eng faol mijozlar</h3>
+      ${top.length ? top.map((u, i) => `<div class="hb" style="grid-template-columns:24px 1fr auto"><b>${i + 1}</b><div class="n">${esc(u.name)}</div><div><b>${u.orders}</b> <span class="muted">ta · ${fmt(u.spent)}</span></div></div>`).join("") : "<p class=\"muted\">Hozircha ma'lumot yo'q.</p>"}
+    </div>
+  </div>
+  <div class="card"><h3>Mahsulotlar bo'yicha tushum</h3><div class="tablewrap"><table><tr><th>Mahsulot</th><th>Sotilgan</th><th>Tushum</th></tr>
+  ${S.products.map((p) => `<tr><td>${esc(p.name)}</td><td>${p.qty} ta</td><td>${fmt(p.revenue)}</td></tr>`).join("") || '<tr><td colspan="3" class="muted">Hozircha ma\'lumot yo\'q.</td></tr>'}</table></div></div>`;
+      }
+
+      function ago(s) {
+        if (!s) return "—";
+        const d = new Date(s.replace(" ", "T"));
+        return `${d.getDate()} ${MON[d.getMonth()]}, ${s.slice(11, 16)}`;
+      }
+
+      function users() {
+        const k = q.toLowerCase(),
+          L = U.filter(
+            (u) =>
+              !k ||
+              (u.name + " " + u.phone + " " + u.address)
+                .toLowerCase()
+                .includes(k),
+          );
+        $("#users").innerHTML =
+          `<input type="search" id="qs" placeholder="Ism, telefon yoki manzil bo'yicha qidirish" value="${esc(q)}">
+  <div class="card"><div class="tablewrap"><table><tr><th>Mijoz</th><th>Telefon</th><th>Manzil</th><th>Buyurtmalar</th><th>Jami summa</th><th>Oxirgi buyurtma</th></tr>
+  ${L.map((u) => `<tr><td><b>${esc(u.name)}</b></td><td>${esc(u.phone)}</td><td>${esc(u.address)}</td><td><b>${u.orders}</b> ta</td><td>${fmt(u.spent)}</td><td>${ago(u.last)}</td></tr>`).join("") || '<tr><td colspan="6" class="muted">Mijoz topilmadi.</td></tr>'}</table></div></div>`;
+        const el = $("#qs");
+        el.focus();
+        el.setSelectionRange(q.length, q.length);
+        el.oninput = () => {
+          q = el.value;
+          users();
+        };
+      }
+
+      function orders() {
+        const L = O.filter((o) => filter === "all" || o.status === filter);
+        const cnt = (s) =>
+          O.filter((o) => s === "all" || o.status === s).length;
+        $("#orders").innerHTML =
+          `<div class="chips">${["all", ...Object.keys(ST)].map((s) => `<button data-f="${s}" class="${filter === s ? "on" : ""}">${s === "all" ? "Hammasi" : ST[s]} (${cnt(s)})</button>`).join("")}</div>` +
+          (L.map(
+            (
+              o,
+            ) => `<div class="card order"><div class="oh"><b>#${o.id}</b><span class="tag s-${o.status}">${ST[o.status]}</span><span class="tag">${o.pay === "card" ? "💳 Karta" : "💵 Naqd"}</span>${o.rating ? `<span class="tag">⭐ ${o.rating}</span>` : ""}<span class="muted">${ago(o.created)}</span><b style="margin-left:auto">${fmt(o.total)}</b></div>
+   <div><b>${esc(o.name || "Noma'lum")}</b> · ${esc(o.phone || "")}<br><span class="muted">📍 ${esc(o.address)}</span>${o.comment ? `<br><span class="muted">💬 ${esc(o.comment)}</span>` : ""}</div>
+   <ul class="oi">${o.items.map((i) => `<li>${esc(i.name)} × ${i.qty}</li>`).join("")}</ul>
+   <div class="act">${(NEXT[o.status] || []).map((s) => `<button data-id="${o.id}" data-s="${s}">${ST[s]}</button>`).join("") || '<span class="muted">Yakunlangan</span>'}</div></div>`,
+          ).join("") || '<p class="muted">Buyurtma yo\'q.</p>');
+      }
+
+      async function load() {
+        try {
+          [S, U, O, M] = await Promise.all([
+            api("/api/stats"),
+            api("/api/users"),
+            api("/api/orders"),
+            api("/api/menu"),
+          ]);
+        } catch (e) {
+          toast("Ma'lumot olinmadi");
+          return;
+        }
+        const b = $("#newb");
+        b.hidden = !S.new;
+        b.textContent = S.new;
+        document.title = (S.new ? `(${S.new}) ` : "") + "O'rinboy Admin";
+        if (tab === "dash") dash();
+        else if (tab === "orders") orders();
+        else if (tab === "menu") menuTab();
+        else if (document.activeElement.id !== "qs") users();
+      }
+      $("#nav").onclick = (e) => {
+        const b = e.target.closest("button");
+        if (!b) return;
+        tab = b.dataset.t;
+        [...$("#nav").children].forEach((x) =>
+          x.classList.toggle("on", x === b),
+        );
+        ["dash", "orders", "users", "menu"].forEach(
+          (t) => ($("#" + t).hidden = t !== tab),
+        );
+        load();
+      };
+      $("#orders").onclick = async (e) => {
+        const f = e.target.closest("[data-f]");
+        if (f) {
+          filter = f.dataset.f;
+          orders();
+          return;
+        }
+        const b = e.target.closest("[data-s]");
+        if (!b) return;
+        if (
+          b.dataset.s === "cancelled" &&
+          !confirm("Buyurtmani bekor qilasizmi? Mijozga xabar ketadi.")
+        )
+          return;
+        try {
+          const r = await api(`/api/orders/${b.dataset.id}/status`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "X-Admin": "1" },
+            body: JSON.stringify({ status: b.dataset.s }),
+          });
+          toast(
+            r.notified
+              ? "Holat saqlandi, mijozga xabar yuborildi"
+              : "Holat saqlandi (mijozga xabar yuborilmadi)",
+          );
+          load();
+        } catch (err) {
+          toast("Xatolik yuz berdi");
+        }
+      };
+      function menuTab() {
+        const cats = [...new Set(M.map((m) => m.cat))];
+        $("#menu").innerHTML =
+          `<div class="chips"><button id="addm" class="on">+ Yangi mahsulot</button></div>` +
+          (cats
+            .map(
+              (c) =>
+                `<div class="card order"><h3>${esc(c)}</h3>` +
+                M.filter((m) => m.cat === c)
+                  .map(
+                    (m) =>
+                      `<div class="mrow${m.sold ? " sold" : ""}"><div class="mn"><b>${esc(m.name)}</b>${m.desc ? ` <span class="muted">${esc(m.desc)}</span>` : ""}</div><div class="mp">${fmt(m.price)}</div><div class="act"><button data-edit="${m.id}">Tahrirlash</button><button data-sold="${m.id}">${m.sold ? "Qayta bor" : "Tugadi"}</button><button data-del="${m.id}">O'chirish</button></div></div>`,
+                  )
+                  .join("") +
+                `</div>`,
+            )
+            .join("") || '<p class="muted">Menyu bo\'sh.</p>');
+      }
+      function openM(m) {
+        editId = m ? m.id : null;
+        $("#dt").textContent = m ? "Mahsulotni tahrirlash" : "Yangi mahsulot";
+        $("#fc").value = m ? m.cat : "";
+        $("#fn").value = m ? m.name : "";
+        $("#fd").value = m ? m.desc : "";
+        $("#fp").value = m ? m.price : "";
+        $("#dc").innerHTML = [...new Set(M.map((x) => x.cat))]
+          .map((c) => `<option value="${esc(c)}">`)
+          .join("");
+        $("#dlg").showModal();
+      }
+      $("#menu").onclick = async (e) => {
+        const t = e.target.closest("button");
+        if (!t) return;
+        try {
+          if (t.id === "addm") return openM();
+          if (t.dataset.edit)
+            return openM(M.find((m) => m.id === t.dataset.edit));
+          if (t.dataset.del) {
+            if (confirm("Mahsulotni menyudan o'chirasizmi?")) {
+              await post("/api/menu/" + t.dataset.del, "DELETE");
+              toast("O'chirildi");
+              load();
+            }
+            return;
+          }
+          if (t.dataset.sold) {
+            const m = M.find((x) => x.id === t.dataset.sold),
+              ns = !m.sold;
+            const notify = confirm(
+              (ns
+                ? "Mijozlarga botda «tugadi» deb xabar yuborilsinmi?"
+                : "Mijozlarga «yana bor» deb xabar yuborilsinmi?") +
+                "\n\nOK — yuborish, Bekor — xabarsiz saqlash",
+            );
+            const r = await post(`/api/menu/${m.id}/sold`, "POST", {
+              sold: ns,
+              notify,
+            });
+            toast(
+              notify ? `Xabar ${r.sent} ta mijozga yuborilmoqda` : "Saqlandi",
+            );
+            load();
+          }
+        } catch (err) {
+          toast("Xatolik yuz berdi");
+        }
+      };
+      $("#mf").onsubmit = async (e) => {
+        e.preventDefault();
+        const b = {
+          cat: $("#fc").value.trim(),
+          name: $("#fn").value.trim(),
+          desc: $("#fd").value.trim(),
+          price: +$("#fp").value,
+        };
+        try {
+          await post(
+            editId ? "/api/menu/" + editId : "/api/menu",
+            editId ? "PUT" : "POST",
+            b,
+          );
+          $("#dlg").close();
+          toast("Menyu yangilandi");
+          load();
+        } catch (err) {
+          toast("Saqlab bo'lmadi");
+        }
+      };
+      $("#cancelm").onclick = () => $("#dlg").close();
+      load();
+      setInterval(load, 30000);
+    </script>
+  </body>
+</html>

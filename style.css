@@ -93,8 +93,8 @@ main {
   align-items: center;
   gap: 8px;
   overflow-x: auto;
-  padding: 10px;
-  margin-right: -3px;
+  padding: 9px 10px;
+  margin: 4px -5px 6px;
   background: var(--bg);
   /* border: 2px solid var(--ink); */
   /* border-radius: 18px; */
@@ -289,6 +289,31 @@ h1 {
   font-weight: 800;
   letter-spacing: -0.03em;
   margin: 10px 0 8px;
+}
+.item.sold {
+  opacity: 0.55;
+}
+.soldtag {
+  display: inline-block;
+  border: 2px solid var(--ink);
+  border-radius: 99px;
+  padding: 0 10px;
+  font-size: 13px;
+  font-weight: 800;
+  background: var(--card);
+}
+.step button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.editbar {
+  background: var(--mustard);
+  color: #3a1c0d;
+  border: 2px solid var(--ink);
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-weight: 800;
+  margin: 8px 0;
 }
 .err {
   color: var(--red);

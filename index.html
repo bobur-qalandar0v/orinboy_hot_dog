@@ -13,7 +13,7 @@
     />
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="./style.css">
   </head>
   <body>
     <main>
@@ -27,6 +27,7 @@
           <div class="hello t" id="hello"></div>
           <p class="sub t">Tanlang, buyurtma bering. Yetkazib beramiz.</p>
         </div>
+        <div class="editbar" id="editbar" hidden></div>
         <nav class="chips" id="chips" aria-label="Bo'limlar"></nav>
         <div id="list"></div>
       </section>
@@ -97,6 +98,8 @@
       </div>
     </div>
 
-    <script src="app.js"></script>
+    <script type="module" src="./app.js">
+      
+    </script>
   </body>
 </html>

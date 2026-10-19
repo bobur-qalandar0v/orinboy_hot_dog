@@ -1,4 +1,4 @@
-const MENU = [
+let MENU = [
     {
         cat: "Sosiskali",
         id: "s2",
@@ -157,6 +157,39 @@ const MENU = [
 const P = new URLSearchParams(location.search),
     NAME = P.get("n") || "",
     ADDR = P.get("a") || "";
+const API = (P.get("api") || "").replace(/\/$/, ""),
+    EDIT = Number(P.get("e")) || 0;
+const esc0 = (s) =>
+    String(s ?? "").replace(
+        /[&<>"']/g,
+        (c) =>
+            ({
+                "&": "&amp;",
+                "<": "&lt;",
+                ">": "&gt;",
+                '"': "&quot;",
+                "'": "&#39;",
+            })[c],
+    );
+// Menyu botning serveridan olinadi (PUBLIC_URL berilgan bo'lsa); bo'lmasa yuqoridagi ro'yxat ishlatiladi
+if (API) {
+    try {
+        const ac = new AbortController();
+        setTimeout(() => ac.abort(), 4000);
+        const r = await fetch(API + "/api/menu", {
+            signal: ac.signal,
+            cache: "no-store",
+        }),
+            m = await r.json();
+        if (r.ok && Array.isArray(m) && m.length)
+            MENU = m.map((x) => ({
+                ...x,
+                cat: esc0(x.cat),
+                name: esc0(x.name),
+                desc: esc0(x.desc),
+            }));
+    } catch (e) { }
+}
 const $ = (id) => document.getElementById(id),
     fmt = (n) =>
         n.toLocaleString("ru-RU").replace(/\u00a0/g, " ") + " so'm";
@@ -186,8 +219,8 @@ $("list").innerHTML = cats
             MENU.filter((m) => m.cat === c)
                 .map(
                     (m) =>
-                        `<div class="item" id="i-${m.id}"><div class="t"><b>${m.name}</b>${m.desc ? `<small>${m.desc}</small>` : ""}<div class="price">${fmt(m.price)}</div></div>
- <div class="step"><button class="minus" data-id="${m.id}" data-d="-1" aria-label="Kamaytirish" hidden>−</button><span class="q" hidden>0</span><button class="plus" data-id="${m.id}" data-d="1" aria-label="${m.name} qo'shish">+</button></div></div>`,
+                        `<div class="item${m.sold ? " sold" : ""}" id="i-${m.id}"><div class="t"><b>${m.name}</b>${m.desc ? `<small>${m.desc}</small>` : ""}<div class="price">${m.sold ? '<span class="soldtag">Tugadi</span>' : fmt(m.price)}</div></div>
+ <div class="step"><button class="minus" data-id="${m.id}" data-d="-1" aria-label="Kamaytirish" hidden>−</button><span class="q" hidden>0</span><button class="plus" data-id="${m.id}" data-d="1" aria-label="${m.name} qo'shish"${m.sold ? " disabled" : ""}>+</button></div></div>`,
                 )
                 .join("") +
             `</section>`,
@@ -306,6 +339,7 @@ $("send").onclick = () => {
         address,
         comment: $("note").value.trim(),
         pay,
+        edit: EDIT,
         total: total(),
         items: MENU.filter((m) => cart[m.id]).map((m) => ({
             id: m.id,
@@ -422,4 +456,17 @@ if (G) {
         { threshold: 0.12 },
     );
     document.querySelectorAll(".item,.cat").forEach((el) => io.observe(el));
+}
+// Tahrirlash rejimi: mavjud buyurtma savatga oldindan yuklanadi
+if (EDIT) {
+    for (const part of (P.get("c") || "").split(",")) {
+        const [id, n] = part.split(":");
+        if (MENU.some((m) => m.id === id && !m.sold) && +n > 0) {
+            cart[id] = +n;
+            upd(id);
+        }
+    }
+    $("editbar").hidden = false;
+    $("editbar").textContent = "✏️ Buyurtma #" + EDIT + " tahrirlanmoqda";
+    $("send").textContent = "O'zgarishlarni saqlash";
 }

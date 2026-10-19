@@ -4,6 +4,6 @@ set WEBAPP_URL=https://orinboyxotdog.vercel.app/?v=3
 set ADMIN_CHAT_ID=1965472129
 set CARD_NUMBER=5440810378823362
 set CARD_OWNER=Guliston Boltayeva
-set ADMIN_PASSWORD=1
+set ADMIN_PASSWORD=123
 py -3.13 bot.py
 pause
