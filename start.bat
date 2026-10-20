@@ -5,5 +5,6 @@ set ADMIN_CHAT_ID=1965472129
 set CARD_NUMBER=5440810378823362
 set CARD_OWNER=Guliston Boltayeva
 set ADMIN_PASSWORD=123
+set PUBLIC_URL=http://127.0.0.1:5500/
 py -3.13 bot.py
 pause
