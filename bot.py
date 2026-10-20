@@ -27,12 +27,12 @@ WEBAPP_URL = os.environ["WEBAPP_URL"]
 ADMIN_CHAT_ID = int(os.environ["ADMIN_CHAT_ID"])
 CARD_NUMBER = os.environ.get("CARD_NUMBER", "")
 CARD_OWNER = os.environ.get("CARD_OWNER", "")
-PUBLIC_URL = os.environ.get("PUBLIC_URL", "").rstrip("/")
+PUBLIC_URL = (os.environ.get("PUBLIC_URL") or os.environ.get("RENDER_EXTERNAL_URL") or "").rstrip("/")
 
 bot = Bot(BOT_TOKEN)
 dp = Dispatcher()
 
-db = sqlite3.connect(os.path.join(os.path.dirname(os.path.abspath(__file__)), "users.db"))
+db = sqlite3.connect(os.environ.get("DB_PATH") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "users.db"))
 db.execute("CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY, name TEXT, phone TEXT, address TEXT)")
 db.execute("CREATE TABLE IF NOT EXISTS pending(uid INTEGER PRIMARY KEY, total INTEGER)")
 db.execute("CREATE TABLE IF NOT EXISTS orders(id INTEGER PRIMARY KEY AUTOINCREMENT, uid INTEGER, created TEXT, "

@@ -330,8 +330,8 @@ async def run(db, bot, kb_for):
     if not password:
         print("ADMIN_PASSWORD o'rnatilmagan, admin panel o'chiq.")
         return
-    host = os.environ.get("ADMIN_HOST", "127.0.0.1")
-    port = int(os.environ.get("ADMIN_PORT", "8080"))
+    host = os.environ.get("ADMIN_HOST") or ("0.0.0.0" if os.environ.get("PORT") else "127.0.0.1")
+    port = int(os.environ.get("ADMIN_PORT") or os.environ.get("PORT") or 8080)
     runner = web.AppRunner(make_app(db, bot, password, kb_for))
     await runner.setup()
     await web.TCPSite(runner, host, port).start()
