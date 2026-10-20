@@ -1,0 +1,194 @@
+[
+ {
+  "id": "s2",
+  "cat": "Sosiskali",
+  "name": "2 ta sosiskali",
+  "desc": "Faqat sosiska va chimchi",
+  "price": 18000,
+  "sold": 0
+ },
+ {
+  "id": "s3",
+  "cat": "Sosiskali",
+  "name": "3 ta sosiskali",
+  "desc": "Faqat sosiska va chimchi",
+  "price": 22000,
+  "sold": 0
+ },
+ {
+  "id": "s4",
+  "cat": "Sosiskali",
+  "name": "4 ta sosiskali",
+  "desc": "Faqat sosiska va chimchi",
+  "price": 25000,
+  "sold": 0
+ },
+ {
+  "id": "s5",
+  "cat": "Sosiskali",
+  "name": "5 ta sosiskali",
+  "desc": "Faqat sosiska va chimchi",
+  "price": 28000,
+  "sold": 0
+ },
+ {
+  "id": "i1",
+  "cat": "Ijjonli",
+  "name": "2 ta sosiska + ijjonli",
+  "desc": "Faqat sosiska va ijjon",
+  "price": 28000,
+  "sold": 0
+ },
+ {
+  "id": "i2",
+  "cat": "Ijjonli",
+  "name": "2 ta sosiska + 2x ijjonli",
+  "desc": "Faqat sosiska va ijjon",
+  "price": 35000,
+  "sold": 0
+ },
+ {
+  "id": "i3",
+  "cat": "Ijjonli",
+  "name": "3 ta sosiska + ijjonli",
+  "desc": "Faqat sosiska va ijjon",
+  "price": 35000,
+  "sold": 0
+ },
+ {
+  "id": "i4",
+  "cat": "Ijjonli",
+  "name": "3 ta sosiska + 2x ijjonli",
+  "desc": "Faqat sosiska va ijjon",
+  "price": 40000,
+  "sold": 0
+ },
+ {
+  "id": "i5",
+  "cat": "Ijjonli",
+  "name": "2 ta sosiska + ijjonli + sir",
+  "desc": "Sosiska, ijjon va eriydigan sir",
+  "price": 35000,
+  "sold": 0
+ },
+ {
+  "id": "c1",
+  "cat": "Cheezdog",
+  "name": "Cheezdog (standart)",
+  "desc": "",
+  "price": 35000,
+  "sold": 0
+ },
+ {
+  "id": "c2",
+  "cat": "Cheezdog",
+  "name": "Cheezdog (katta)",
+  "desc": "",
+  "price": 40000,
+  "sold": 0
+ },
+ {
+  "id": "t2",
+  "cat": "Tushonkali",
+  "name": "Tushonkali 2x sosiska",
+  "desc": "",
+  "price": 35000,
+  "sold": 0
+ },
+ {
+  "id": "t3",
+  "cat": "Tushonkali",
+  "name": "Tushonkali 3x sosiska",
+  "desc": "",
+  "price": 40000,
+  "sold": 0
+ },
+ {
+  "id": "tk1",
+  "cat": "Toshkent xot dog",
+  "name": "Toshkent xot dog (standart)",
+  "desc": "Go'sht assorti",
+  "price": 30000,
+  "sold": 0
+ },
+ {
+  "id": "tk2",
+  "cat": "Toshkent xot dog",
+  "name": "Toshkent xot dog (katta)",
+  "desc": "Go'sht assorti",
+  "price": 35000,
+  "sold": 0
+ },
+ {
+  "id": "m1",
+  "cat": "Mangalga xot dog",
+  "name": "Mangalga xot dog sirniy katlet",
+  "desc": "",
+  "price": 45000,
+  "sold": 0
+ },
+ {
+  "id": "m2",
+  "cat": "Mangalga xot dog",
+  "name": "Mangalga xot dog shashlikli",
+  "desc": "",
+  "price": 35000,
+  "sold": 0
+ },
+ {
+  "id": "d1",
+  "cat": "Ichimliklar",
+  "name": "Cola 0.5 l",
+  "desc": "",
+  "price": 8000,
+  "sold": 0
+ },
+ {
+  "id": "d2",
+  "cat": "Ichimliklar",
+  "name": "Fanta 0.5 l",
+  "desc": "",
+  "price": 8000,
+  "sold": 0
+ },
+ {
+  "id": "d3",
+  "cat": "Ichimliklar",
+  "name": "Sprite 1.5 L",
+  "desc": "",
+  "price": 15000,
+  "sold": 0
+ },
+ {
+  "id": "d4",
+  "cat": "Ichimliklar",
+  "name": "Cola 1.5 l",
+  "desc": "",
+  "price": 15000,
+  "sold": 0
+ },
+ {
+  "id": "a6d1bbed",
+  "cat": "Ichimliklar",
+  "name": "Cola 2 L",
+  "desc": "",
+  "price": 18000,
+  "sold": 0
+ },
+ {
+  "id": "dc865a3e",
+  "cat": "Ichimliklar",
+  "name": "Ays tea",
+  "desc": "",
+  "price": 12000,
+  "sold": 0
+ },
+ {
+  "id": "20e92963",
+  "cat": "Ichimliklar",
+  "name": "Mohito",
+  "desc": "",
+  "price": 15000,
+  "sold": 0
+ }
+]

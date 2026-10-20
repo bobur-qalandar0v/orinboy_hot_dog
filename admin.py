@@ -17,7 +17,8 @@ from datetime import datetime, timedelta
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiohttp import web
 
-HTML_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "admin.html")
+BASE = os.path.dirname(os.path.abspath(__file__))
+HTML_PATH = os.path.join(BASE, "admin.html")
 
 STATUS_MSG = {
     "cooking": "👨‍🍳 buyurtmangiz tayyorlanmoqda.",
@@ -71,7 +72,15 @@ DEFAULT_ZONES = [
 def init_zones(db):
     db.execute("CREATE TABLE IF NOT EXISTS zones(id TEXT PRIMARY KEY, name TEXT, fee INTEGER, pickup INTEGER DEFAULT 0, pos INTEGER)")
     if not db.execute("SELECT 1 FROM zones LIMIT 1").fetchone():
-        db.executemany("INSERT INTO zones VALUES (?,?,?,?,?)", [(*z, i) for i, z in enumerate(DEFAULT_ZONES)])
+        zones = DEFAULT_ZONES
+        seed = os.path.join(BASE, "seed_zones.txt")  # export_data.py yaratadi: har qatorda "Nomi - narxi"
+        if os.path.exists(seed):
+            zones = [("z0", "Olib ketaman", 0, 1)]
+            for i, line in enumerate(open(seed, encoding="utf-8")):
+                name, sep, fee = line.strip().rpartition(" - ")
+                if sep and fee.strip().isdigit():
+                    zones.append((f"s{i}", name.strip(), int(fee), 0))
+        db.executemany("INSERT INTO zones VALUES (?,?,?,?,?)", [(*z, i) for i, z in enumerate(zones)])
     db.commit()
 
 
@@ -84,7 +93,14 @@ def init_menu(db):
     db.execute("CREATE TABLE IF NOT EXISTS menu(id TEXT PRIMARY KEY, cat TEXT, name TEXT, descr TEXT, "
                "price INTEGER, sold INTEGER DEFAULT 0, pos INTEGER)")
     if not db.execute("SELECT 1 FROM menu LIMIT 1").fetchone():
-        db.executemany("INSERT INTO menu VALUES (?,?,?,?,?,0,?)", [(*m, i) for i, m in enumerate(DEFAULT_MENU)])
+        seed = os.path.join(BASE, "seed_menu.json")  # export_data.py yaratadi
+        if os.path.exists(seed):
+            items = json.load(open(seed, encoding="utf-8"))
+            db.executemany("INSERT INTO menu VALUES (?,?,?,?,?,?,?)",
+                           [(m["id"], m["cat"], m["name"], m["desc"], m["price"], int(m.get("sold", 0)), i)
+                            for i, m in enumerate(items)])
+        else:
+            db.executemany("INSERT INTO menu VALUES (?,?,?,?,?,0,?)", [(*m, i) for i, m in enumerate(DEFAULT_MENU)])
     db.commit()
 
 
