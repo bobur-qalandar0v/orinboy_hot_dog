@@ -395,7 +395,8 @@
         font-weight: 700;
         margin-top: 12px;
       }
-      dialog input {
+      dialog input,
+      dialog textarea {
         width: 100%;
         padding: 10px 12px;
         border: 2px solid var(--ink);
@@ -420,6 +421,7 @@
         </button>
         <button data-t="users">Mijozlar</button>
         <button data-t="menu">Menyu</button>
+        <button data-t="zones">Yetkazish</button>
       </nav>
     </header>
     <main>
@@ -427,6 +429,7 @@
       <section id="orders" hidden></section>
       <section id="users" hidden></section>
       <section id="menu" hidden></section>
+      <section id="zones" hidden></section>
     </main>
     <div id="toast" role="status"></div>
     <dialog id="dlg">
@@ -447,6 +450,47 @@
         <div class="act" style="margin-top: 14px">
           <button type="submit">Saqlash</button
           ><button type="button" id="cancelm">Bekor</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="dlgz">
+      <form id="zf">
+        <h3 id="zt">Yangi hudud</h3>
+        <label>Hudud nomi<input id="zn" required maxlength="60" /></label>
+        <label
+          >Yetkazib berish narxi (so'm)<input
+            id="zfee"
+            type="number"
+            min="0"
+            step="500"
+            required
+        /></label>
+        <label style="display: flex; gap: 8px; align-items: center"
+          ><input id="zp" type="checkbox" style="width: auto; margin: 0" /> Olib
+          ketish (manzil kerak emas)</label
+        >
+        <div class="act" style="margin-top: 14px">
+          <button type="submit">Saqlash</button
+          ><button type="button" id="cancelz">Bekor</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="dlgb">
+      <form id="bf">
+        <h3>Ko'p hudud qo'shish</h3>
+        <p class="muted" style="margin: 4px 0 0">
+          Har qatorga bitta hudud: <b>Nomi - narxi</b><br />Masalan:
+          <code>Andalib - 15000</code>
+        </p>
+        <textarea
+          id="bt"
+          rows="10"
+          required
+          placeholder="Andalib - 15000&#10;Xonqa markaz - 10000&#10;Uzoq mahalla - 20000"
+        ></textarea>
+        <div class="act" style="margin-top: 14px">
+          <button type="submit">Qo'shish</button
+          ><button type="button" id="cancelb">Bekor</button>
         </div>
       </form>
     </dialog>
@@ -494,10 +538,13 @@
         U = [],
         O = [],
         M = [],
+        Z = [],
         filter = "all",
         tab = "dash",
         q = "",
-        editId = null;
+        editId = null,
+        zoneId = null,
+        zq = "";
       const NEXT = {
         new: ["cooking", "cancelled"],
         cooking: ["delivering", "cancelled"],
@@ -542,6 +589,7 @@
     ${stat("O'rtacha chek", fmt(S.avg))}
     ${stat("Mijozlar", S.users + " ta", "ro'yxatdan o'tgan")}
     ${stat("Yangi buyurtma", S.new + " ta", "javob kutmoqda")}
+    ${stat("Yetkazib berish tushumi", fmt(S.delivery_revenue), "jami summa ichida")}
     ${stat("Mijoz bahosi", S.rating_count ? "⭐ " + S.rating_avg : "—", S.rating_count + " ta baho")}
   </div>
   <div class="grid two">
@@ -614,7 +662,7 @@
             (
               o,
             ) => `<div class="card order"><div class="oh"><b>#${o.id}</b><span class="tag s-${o.status}">${ST[o.status]}</span><span class="tag">${o.pay === "card" ? "💳 Karta" : "💵 Naqd"}</span>${o.rating ? `<span class="tag">⭐ ${o.rating}</span>` : ""}<span class="muted">${ago(o.created)}</span><b style="margin-left:auto">${fmt(o.total)}</b></div>
-   <div><b>${esc(o.name || "Noma'lum")}</b> · ${esc(o.phone || "")}<br><span class="muted">📍 ${esc(o.address)}</span>${o.comment ? `<br><span class="muted">💬 ${esc(o.comment)}</span>` : ""}</div>
+   <div><b>${esc(o.name || "Noma'lum")}</b> · ${esc(o.phone || "")}<br><span class="muted">📍 ${esc(o.address)}</span>${o.zone ? `<br><span class="muted">🛵 ${esc(o.zone)}${o.delivery ? " · " + fmt(o.delivery) : ""}</span>` : ""}${o.comment ? `<br><span class="muted">💬 ${esc(o.comment)}</span>` : ""}</div>
    <ul class="oi">${o.items.map((i) => `<li>${esc(i.name)} × ${i.qty}</li>`).join("")}</ul>
    <div class="act">${(NEXT[o.status] || []).map((s) => `<button data-id="${o.id}" data-s="${s}">${ST[s]}</button>`).join("") || '<span class="muted">Yakunlangan</span>'}</div></div>`,
           ).join("") || '<p class="muted">Buyurtma yo\'q.</p>');
@@ -622,11 +670,12 @@
 
       async function load() {
         try {
-          [S, U, O, M] = await Promise.all([
+          [S, U, O, M, Z] = await Promise.all([
             api("/api/stats"),
             api("/api/users"),
             api("/api/orders"),
             api("/api/menu"),
+            api("/api/zones"),
           ]);
         } catch (e) {
           toast("Ma'lumot olinmadi");
@@ -639,7 +688,9 @@
         if (tab === "dash") dash();
         else if (tab === "orders") orders();
         else if (tab === "menu") menuTab();
-        else if (document.activeElement.id !== "qs") users();
+        else if (tab === "zones") {
+          if (document.activeElement.id !== "zq") zonesTab();
+        } else if (document.activeElement.id !== "qs") users();
       }
       $("#nav").onclick = (e) => {
         const b = e.target.closest("button");
@@ -648,7 +699,7 @@
         [...$("#nav").children].forEach((x) =>
           x.classList.toggle("on", x === b),
         );
-        ["dash", "orders", "users", "menu"].forEach(
+        ["dash", "orders", "users", "menu", "zones"].forEach(
           (t) => ($("#" + t).hidden = t !== tab),
         );
         load();
@@ -682,6 +733,112 @@
         } catch (err) {
           toast("Xatolik yuz berdi");
         }
+      };
+      function zonesTab(focus) {
+        const k = zq.toLowerCase(),
+          L = Z.filter((z) => !k || z.name.toLowerCase().includes(k));
+        $("#zones").innerHTML =
+          `<div class="chips"><button id="addz" class="on">+ Yangi hudud</button><button id="bulkz">+ Ko'p hudud qo'shish</button></div><input type="search" id="zq" placeholder="Hududni qidirish" value="${esc(zq)}"><div class="card"><h3>Yetkazib berish narxlari (${Z.length} ta hudud)</h3>` +
+          (L.map(
+            (z) =>
+              `<div class="mrow"><div class="mn"><b>${esc(z.name)}</b>${z.pickup ? ' <span class="muted">(olib ketish)</span>' : ""}</div><div class="mp">${z.pickup ? "bepul" : fmt(z.fee)}</div><div class="act"><button data-zedit="${z.id}">Tahrirlash</button><button data-zdel="${z.id}">O'chirish</button></div></div>`,
+          ).join("") || '<p class="muted">Hudud topilmadi.</p>') +
+          `</div>`;
+        const el = $("#zq");
+        if (focus) {
+          el.focus();
+          el.setSelectionRange(zq.length, zq.length);
+        }
+        el.oninput = () => {
+          zq = el.value;
+          zonesTab(true);
+        };
+      }
+      function openZ(z) {
+        zoneId = z ? z.id : null;
+        $("#zt").textContent = z ? "Hududni tahrirlash" : "Yangi hudud";
+        $("#zn").value = z ? z.name : "";
+        $("#zfee").value = z ? z.fee : "";
+        $("#zp").checked = z ? z.pickup : false;
+        $("#dlgz").showModal();
+      }
+      $("#zones").onclick = async (e) => {
+        const t = e.target.closest("button");
+        if (!t) return;
+        try {
+          if (t.id === "addz") return openZ();
+          if (t.id === "bulkz") {
+            $("#bt").value = "";
+            return $("#dlgb").showModal();
+          }
+          if (t.dataset.zedit)
+            return openZ(Z.find((z) => z.id === t.dataset.zedit));
+          if (t.dataset.zdel && confirm("Hududni o'chirasizmi?")) {
+            await post("/api/zones/" + t.dataset.zdel, "DELETE");
+            toast("O'chirildi");
+            load();
+          }
+        } catch (err) {
+          toast("Xatolik yuz berdi");
+        }
+      };
+      $("#zf").onsubmit = async (e) => {
+        e.preventDefault();
+        const b = {
+          name: $("#zn").value.trim(),
+          fee: +$("#zfee").value,
+          pickup: $("#zp").checked,
+        };
+        try {
+          await post(
+            zoneId ? "/api/zones/" + zoneId : "/api/zones",
+            zoneId ? "PUT" : "POST",
+            b,
+          );
+          $("#dlgz").close();
+          toast("Saqlandi");
+          load();
+        } catch (err) {
+          toast("Saqlab bo'lmadi");
+        }
+      };
+      $("#cancelz").onclick = () => $("#dlgz").close();
+      $("#cancelb").onclick = () => $("#dlgb").close();
+      $("#bf").onsubmit = async (e) => {
+        e.preventDefault();
+        const have = new Set(Z.map((z) => z.name.toLowerCase()));
+        let ok = 0,
+          skip = 0,
+          bad = 0;
+        for (const line of $("#bt").value.split("\n")) {
+          const t = line.trim();
+          if (!t) continue;
+          const m = t.match(/^(.+?)\s*[-–—:;,]\s*(\d[\d\s]*)$/);
+          if (!m) {
+            bad++;
+            continue;
+          }
+          const name = m[1].trim(),
+            fee = parseInt(m[2].replace(/\s/g, ""), 10);
+          if (have.has(name.toLowerCase())) {
+            skip++;
+            continue;
+          }
+          try {
+            await post("/api/zones", "POST", { name, fee, pickup: false });
+            have.add(name.toLowerCase());
+            ok++;
+          } catch (err) {
+            bad++;
+          }
+        }
+        $("#dlgb").close();
+        toast(
+          `${ok} ta qo'shildi` +
+            (skip ? `, ${skip} ta bor edi` : "") +
+            (bad ? `, ${bad} ta qator o'qilmadi` : ""),
+        );
+        load();
       };
       function menuTab() {
         const cats = [...new Set(M.map((m) => m.cat))];

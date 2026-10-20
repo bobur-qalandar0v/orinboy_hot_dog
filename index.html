@@ -33,11 +33,16 @@
       </section>
 
       <section id="checkout" hidden>
+        <div class="topsum" aria-live="polite">
+          <span id="topl">Umumiy summa</span><b id="topv">0 so'm</b>
+        </div>
         <button class="back" id="back">Menyuga qaytish</button>
         <h1>Buyurtmangiz</h1>
         <div id="summary"></div>
-        <label for="addr">Yetkazish manzili</label>
-        <textarea id="addr" rows="2"></textarea>
+        <label for="zsel">Hududingizni tanlang</label>
+        <select id="zsel"></select>
+        <p class="zinfo" id="zinfo" aria-live="polite"></p>
+        <p class="addrinfo" id="addrinfo" hidden></p>
         <label for="note">Izoh (ixtiyoriy)</label>
         <input id="note" placeholder="Masalan: achchiq sous kam bo'lsin" />
         <label id="paylbl">To'lov turi</label>
@@ -98,8 +103,6 @@
       </div>
     </div>
 
-    <script type="module" src="./app.js">
-      
-    </script>
+    <script type="module" src="./app.js"></script>
   </body>
 </html>

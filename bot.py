@@ -37,21 +37,26 @@ db.execute("CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY, name TEXT, 
 db.execute("CREATE TABLE IF NOT EXISTS pending(uid INTEGER PRIMARY KEY, total INTEGER)")
 db.execute("CREATE TABLE IF NOT EXISTS orders(id INTEGER PRIMARY KEY AUTOINCREMENT, uid INTEGER, created TEXT, "
            "items TEXT, total INTEGER, pay TEXT, address TEXT, comment TEXT, status TEXT DEFAULT 'new')")
-try:
-    db.execute("ALTER TABLE orders ADD COLUMN rating INTEGER")
-except sqlite3.OperationalError:
-    pass
+for _sql in ("ALTER TABLE orders ADD COLUMN rating INTEGER", "ALTER TABLE orders ADD COLUMN zone TEXT",
+             "ALTER TABLE orders ADD COLUMN zone_id TEXT", "ALTER TABLE orders ADD COLUMN delivery INTEGER DEFAULT 0",
+             "ALTER TABLE users ADD COLUMN zone TEXT"):
+    try:
+        db.execute(_sql)
+    except sqlite3.OperationalError:
+        pass
 admin.init_menu(db)
+admin.init_zones(db)
 db.commit()
 
 
 def get_user(uid):
-    row = db.execute("SELECT name, phone, address FROM users WHERE id=?", (uid,)).fetchone()
-    return dict(zip(("name", "phone", "address"), row)) if row else None
+    row = db.execute("SELECT name, phone, address, zone FROM users WHERE id=?", (uid,)).fetchone()
+    return dict(zip(("name", "phone", "address", "zone"), row)) if row else None
 
 
 def save_user(uid, name, phone, address):
-    db.execute("INSERT OR REPLACE INTO users VALUES (?,?,?,?)", (uid, name, phone, address))
+    db.execute("INSERT INTO users(id, name, phone, address) VALUES (?,?,?,?) ON CONFLICT(id) DO UPDATE SET "
+               "name=excluded.name, phone=excluded.phone, address=excluded.address", (uid, name, phone, address))
     db.commit()
 
 
@@ -61,9 +66,9 @@ def fmt(n):
 
 def active_order(uid):
     """Hali tayyorlanishi boshlanmagan (tahrirlash va bekor qilish mumkin) buyurtma."""
-    r = db.execute("SELECT id, items, total FROM orders WHERE uid=? AND status='new' ORDER BY id DESC LIMIT 1",
+    r = db.execute("SELECT id, items, total, zone_id FROM orders WHERE uid=? AND status='new' ORDER BY id DESC LIMIT 1",
                    (uid,)).fetchone()
-    return {"id": r[0], "items": json.loads(r[1]), "total": r[2]} if r else None
+    return {"id": r[0], "items": json.loads(r[1]), "total": r[2], "zone": r[3]} if r else None
 
 
 def kb_for(uid):
@@ -74,6 +79,9 @@ def kb_for(uid):
     if PUBLIC_URL:
         params["api"] = PUBLIC_URL
     order = active_order(uid)
+    zid = (order or {}).get("zone") or user.get("zone")
+    if zid:
+        params["z"] = zid
     if order:
         params["e"] = order["id"]
         params["c"] = ",".join(f"{i['id']}:{i['qty']}" for i in order["items"])
@@ -201,8 +209,15 @@ async def on_order(message: Message):
         await message.answer(msg, reply_markup=kb_for(uid))
         return
 
-    total = sum(i["price"] * i["qty"] for i in items)
-    address = (order.get("address") or user["address"]).strip()
+    zone = next((z for z in admin.get_zones(db) if z["id"] == order.get("zone")), None)
+    if not zone:
+        await message.answer("Yetkazib berish hududi topilmadi. Menyuni qayta ochib, hududni tanlang.",
+                             reply_markup=kb_for(uid))
+        return
+    subtotal = sum(i["price"] * i["qty"] for i in items)
+    delivery = zone["fee"]
+    total = subtotal + delivery
+    address = "Olib ketadi (o'zi keladi)" if zone["pickup"] else (order.get("address") or user["address"]).strip()
     comment = str(order.get("comment", ""))[:200]
     by_card = order.get("pay") == "card"
     pay = "card" if by_card else "cash"
@@ -215,23 +230,28 @@ async def on_order(message: Message):
             await message.answer("Bu buyurtmani endi o'zgartirib bo'lmaydi (tayyorlanmoqda yoki yakunlangan).",
                                  reply_markup=kb_for(uid))
             return
-        db.execute("UPDATE orders SET items=?, total=?, pay=?, address=?, comment=? WHERE id=?",
-                   (items_json, total, pay, address, comment, edit_id))
+        db.execute("UPDATE orders SET items=?, total=?, pay=?, address=?, comment=?, zone=?, zone_id=?, delivery=? WHERE id=?",
+                   (items_json, total, pay, address, comment, zone["name"], zone["id"], delivery, edit_id))
         oid, title = edit_id, "✏️ Buyurtma o'zgartirildi"
     else:
         cur = db.execute(
-            "INSERT INTO orders(uid, created, items, total, pay, address, comment) VALUES (?,?,?,?,?,?,?)",
-            (uid, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), items_json, total, pay, address, comment))
+            "INSERT INTO orders(uid, created, items, total, pay, address, comment, zone, zone_id, delivery) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?)",
+            (uid, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), items_json, total, pay, address, comment,
+             zone["name"], zone["id"], delivery))
         oid, title = cur.lastrowid, "🆕 Yangi buyurtma"
     if by_card:
         db.execute("INSERT OR REPLACE INTO pending VALUES (?,?)", (uid, total))
     else:
         db.execute("DELETE FROM pending WHERE uid=?", (uid,))
+    db.execute("UPDATE users SET zone=? WHERE id=?", (zone["id"], uid))
     db.commit()
 
     lines = "\n".join(f"• {i['name']} × {i['qty']} = {fmt(i['price'] * i['qty'])}" for i in items)
     pay_text = "💳 Kartaga o'tkazma (chek kutilmoqda)" if by_card else "💵 Naqd"
-    text = (f"{title} #{oid}\n\n{lines}\n\nJami: {fmt(total)}\nTo'lov: {pay_text}\n"
+    fee_label = "Olib ketish" if zone["pickup"] else "Yetkazib berish"
+    fee_line = "Olib ketadi (yetkazish yo'q)" if zone["pickup"] else f"Yetkazib berish ({zone['name']}): {fmt(delivery)}"
+    text = (f"{title} #{oid}\n\n{lines}\n{fee_line}\n\nJami: {fmt(total)}\nTo'lov: {pay_text}\n"
             f"Ism: {user['name']}\nTelefon: {user['phone']}\nManzil: {address}\n")
     if comment:
         text += f"Izoh: {comment}\n"
@@ -241,7 +261,7 @@ async def on_order(message: Message):
     done = "Buyurtmangiz o'zgartirildi! ✏️" if edit_id else "Buyurtmangiz qabul qilindi! 🌭"
     if by_card and CARD_NUMBER:
         await message.answer(
-            f"{done}\n\nTo'lov summasi: <b>{fmt(total)}</b>\n"
+            f"{done}\n\nMahsulotlar: {fmt(subtotal)}\n{fee_label}: {fmt(delivery)}\nTo'lov summasi: <b>{fmt(total)}</b>\n"
             f"Karta raqami (bosib nusxalang):\n<code>{html.escape(CARD_NUMBER)}</code>\n"
             f"Karta egasi: {html.escape(CARD_OWNER)}\n\n"
             "Pulni o'tkazgach, to'lov chekini (skrinshot) shu chatga yuboring.",
@@ -249,7 +269,7 @@ async def on_order(message: Message):
     elif by_card:
         await message.answer(f"{done} Operator karta raqamini yuboradi.", reply_markup=kb_for(uid))
     else:
-        await message.answer(f"{done} Tez orada bog'lanamiz. "
+        await message.answer(f"{done} Jami: {fmt(total)}{'' if zone['pickup'] else ' (yetkazib berish bilan)'}. Tez orada bog'lanamiz. "
                              "Tayyorlash boshlanmaguncha buyurtmani tahrirlashingiz yoki bekor qilishingiz mumkin.",
                              reply_markup=kb_for(uid))
 
@@ -369,7 +389,7 @@ async def on_pay_decision(callback: CallbackQuery):
 
 
 async def main():
-    print("Bot ishga tushdi: v6 (menyu, tahrirlash, baho)")
+    print("Bot ishga tushdi: v7 (yetkazib berish hududlari)")
     await admin.run(db, bot, kb_for)
     await dp.start_polling(bot)
 

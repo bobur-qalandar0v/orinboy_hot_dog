@@ -60,6 +60,26 @@ DEFAULT_MENU = [
 ]
 
 
+DEFAULT_ZONES = [
+    ("z1", "Yaqin hududlar", 10000, 0),
+    ("z2", "O'rta masofa", 15000, 0),
+    ("z3", "Uzoq hududlar", 20000, 0),
+    ("z0", "Olib ketaman", 0, 1),
+]
+
+
+def init_zones(db):
+    db.execute("CREATE TABLE IF NOT EXISTS zones(id TEXT PRIMARY KEY, name TEXT, fee INTEGER, pickup INTEGER DEFAULT 0, pos INTEGER)")
+    if not db.execute("SELECT 1 FROM zones LIMIT 1").fetchone():
+        db.executemany("INSERT INTO zones VALUES (?,?,?,?,?)", [(*z, i) for i, z in enumerate(DEFAULT_ZONES)])
+    db.commit()
+
+
+def get_zones(db):
+    cur = db.execute("SELECT id, name, fee, pickup FROM zones ORDER BY pos, rowid")
+    return [{"id": r[0], "name": r[1], "fee": r[2], "pickup": bool(r[3])} for r in cur.fetchall()]
+
+
 def init_menu(db):
     db.execute("CREATE TABLE IF NOT EXISTS menu(id TEXT PRIMARY KEY, cat TEXT, name TEXT, descr TEXT, "
                "price INTEGER, sold INTEGER DEFAULT 0, pos INTEGER)")
@@ -88,7 +108,7 @@ def make_app(db, bot, password, kb_for):
 
     @web.middleware
     async def auth(request, handler):
-        if request.method == "GET" and request.path == "/api/menu":
+        if request.method == "GET" and request.path in ("/api/menu", "/api/zones"):
             return await handler(request)  # menyu hammaga ochiq (maxfiy ma'lumot yo'q)
         ok = False
         header = request.headers.get("Authorization", "")
@@ -136,6 +156,7 @@ def make_app(db, bot, password, kb_for):
             "new": db.execute("SELECT COUNT(*) FROM orders WHERE status='new'").fetchone()[0],
             "today_orders": t_orders, "today_revenue": t_revenue,
             "rating_count": rc, "rating_avg": round(ra, 1) if ra else 0,
+            "delivery_revenue": db.execute("SELECT COALESCE(SUM(delivery), 0) FROM orders WHERE status != 'cancelled'").fetchone()[0],
             "daily": [{"d": d, "orders": v[0], "revenue": v[1]} for d, v in daily.items()],
             "hours": hours, "pay": pay,
             "products": sorted(prods.values(), key=lambda x: -x["qty"]),
@@ -150,7 +171,7 @@ def make_app(db, bot, password, kb_for):
 
     async def orders(request):
         data = rows(
-            "SELECT o.id, o.created, o.items, o.total, o.pay, o.address, o.comment, o.status, o.rating, "
+            "SELECT o.id, o.created, o.items, o.total, o.pay, o.address, o.comment, o.status, o.rating, o.zone, o.delivery, "
             "u.name, u.phone FROM orders o LEFT JOIN users u ON u.id = o.uid ORDER BY o.id DESC LIMIT 200")
         for o in data:
             o["items"] = json.loads(o["items"])
@@ -221,6 +242,42 @@ def make_app(db, bot, password, kb_for):
         db.commit()
         return web.json_response({"ok": True})
 
+    async def zones_list(request):
+        return web.json_response(get_zones(db), headers={"Access-Control-Allow-Origin": "*",
+                                                         "Cache-Control": "no-store"})
+
+    async def read_zone(request):
+        d = await request.json()
+        name = str(d.get("name", "")).strip()[:60]
+        try:
+            fee = int(d.get("fee"))
+        except (TypeError, ValueError):
+            fee = -1
+        if not name or fee < 0:
+            raise web.HTTPBadRequest(text="Nom va narx kerak")
+        return name, fee, 1 if d.get("pickup") else 0
+
+    async def zone_create(request):
+        guard(request)
+        name, fee, pickup = await read_zone(request)
+        pos = (db.execute("SELECT MAX(pos) FROM zones").fetchone()[0] or 0) + 1
+        db.execute("INSERT INTO zones VALUES (?,?,?,?,?)", (uuid.uuid4().hex[:8], name, fee, pickup, pos))
+        db.commit()
+        return web.json_response({"ok": True})
+
+    async def zone_update(request):
+        guard(request)
+        name, fee, pickup = await read_zone(request)
+        db.execute("UPDATE zones SET name=?, fee=?, pickup=? WHERE id=?", (name, fee, pickup, request.match_info["id"]))
+        db.commit()
+        return web.json_response({"ok": True})
+
+    async def zone_delete(request):
+        guard(request)
+        db.execute("DELETE FROM zones WHERE id=?", (request.match_info["id"],))
+        db.commit()
+        return web.json_response({"ok": True})
+
     async def broadcast(text):
         for (uid,) in db.execute("SELECT id FROM users").fetchall():
             try:
@@ -260,6 +317,10 @@ def make_app(db, bot, password, kb_for):
         web.put("/api/menu/{id}", menu_update),
         web.delete("/api/menu/{id}", menu_delete),
         web.post("/api/menu/{id}/sold", menu_sold),
+        web.get("/api/zones", zones_list),
+        web.post("/api/zones", zone_create),
+        web.put("/api/zones/{id}", zone_update),
+        web.delete("/api/zones/{id}", zone_delete),
     ])
     return app
 
