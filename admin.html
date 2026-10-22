@@ -647,8 +647,8 @@
           );
         $("#users").innerHTML =
           `<input type="search" id="qs" placeholder="Ism, telefon yoki manzil bo'yicha qidirish" value="${esc(q)}">
-  <div class="card"><div class="tablewrap"><table><tr><th>Mijoz</th><th>Telefon</th><th>Manzil</th><th>Buyurtmalar</th><th>Jami summa</th><th>Oxirgi buyurtma</th></tr>
-  ${L.map((u) => `<tr><td><b>${esc(u.name)}</b></td><td>${esc(u.phone)}</td><td>${esc(u.address)}</td><td><b>${u.orders}</b> ta</td><td>${fmt(u.spent)}</td><td>${ago(u.last)}</td></tr>`).join("") || '<tr><td colspan="6" class="muted">Mijoz topilmadi.</td></tr>'}</table></div></div>`;
+  <div class="card"><div class="tablewrap"><table><tr><th>Mijoz</th><th>Telefon</th><th>Manzil</th><th>Buyurtmalar</th><th>Jami summa</th><th>Ro'yxatdan o'tgan</th></tr>
+  ${L.map((u) => `<tr><td><b>${esc(u.name)}</b></td><td>${esc(u.phone)}</td><td>${esc(u.address)}</td><td><b>${u.orders}</b> ta</td><td>${fmt(u.spent)}</td><td>${ago(u.registered)}</td></tr>`).join("") || '<tr><td colspan="6" class="muted">Mijoz topilmadi.</td></tr>'}</table></div></div>`;
         const el = $("#qs");
         el.focus();
         el.setSelectionRange(q.length, q.length);

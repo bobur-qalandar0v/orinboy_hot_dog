@@ -219,7 +219,7 @@ def make_app(db, bot, password, kb_for):
     async def users(request):
         return web.json_response(rows(
             "SELECT u.id, u.name, u.phone, u.address, COUNT(o.id) AS orders, "
-            "COALESCE(SUM(o.total), 0) AS spent, MAX(o.created) AS last "
+            "COALESCE(SUM(o.total), 0) AS spent, u.registered AS registered "
             "FROM users u LEFT JOIN orders o ON o.uid = u.id AND o.status != 'cancelled' "
             "GROUP BY u.id ORDER BY orders DESC, spent DESC"))
 

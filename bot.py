@@ -39,7 +39,7 @@ db.execute("CREATE TABLE IF NOT EXISTS orders(id INTEGER PRIMARY KEY AUTOINCREME
            "items TEXT, total INTEGER, pay TEXT, address TEXT, comment TEXT, status TEXT DEFAULT 'new')")
 for _sql in ("ALTER TABLE orders ADD COLUMN rating INTEGER", "ALTER TABLE orders ADD COLUMN zone TEXT",
              "ALTER TABLE orders ADD COLUMN zone_id TEXT", "ALTER TABLE orders ADD COLUMN delivery INTEGER DEFAULT 0", "ALTER TABLE orders ADD COLUMN ahead INTEGER",
-             "ALTER TABLE users ADD COLUMN zone TEXT"):
+             "ALTER TABLE users ADD COLUMN zone TEXT", "ALTER TABLE users ADD COLUMN registered TEXT"):
     try:
         db.execute(_sql)
     except sqlite3.OperationalError:
@@ -60,8 +60,10 @@ def get_user(uid):
 
 
 def save_user(uid, name, phone, address):
-    db.execute("INSERT INTO users(id, name, phone, address) VALUES (?,?,?,?) ON CONFLICT(id) DO UPDATE SET "
-               "name=excluded.name, phone=excluded.phone, address=excluded.address", (uid, name, phone, address))
+    now = admin.tashkent_now().strftime("%Y-%m-%d %H:%M:%S")
+    db.execute("INSERT INTO users(id, name, phone, address, registered) VALUES (?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET "
+               "name=excluded.name, phone=excluded.phone, address=excluded.address, "
+               "registered=COALESCE(users.registered, excluded.registered)", (uid, name, phone, address, now))
     db.commit()
 
 
