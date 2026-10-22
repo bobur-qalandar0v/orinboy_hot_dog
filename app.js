@@ -35,7 +35,8 @@ if (API) {
 }
 // Yetkazib berish hududlari (xuddi shunday botdan olinadi; narxni baribir bot qayta hisoblaydi)
 let ZONES = [{ id: "z1", name: "Yaqin hududlar", fee: 10000, pickup: false }, { id: "z2", name: "O'rta masofa", fee: 15000, pickup: false }, { id: "z3", name: "Uzoq hududlar", fee: 20000, pickup: false }, { id: "z0", name: "Olib ketaman", fee: 0, pickup: true }];
-if (API) { try { const r = await fetch(API + "/api/zones", { cache: "no-store" }), z = await r.json(); if (r.ok && Array.isArray(z) && z.length) ZONES = z.map(x => ({ ...x, name: esc0(x.name) })); } catch (e) { } }
+if (API) { try { const r = await fetch(API + "/api/zones", { cache: "no-store" }), z = await r.json(); if (r.ok && Array.isArray(z) && z.length) ZONES = z.map(x => ({ ...x, raw: x.name, name: esc0(x.name) })); } catch (e) { } }
+ZONES.forEach(z => { z.raw = z.raw ?? z.name; });
 let zone = ZONES.some(x => x.id === P.get("z")) ? P.get("z") : "";
 const $ = id => document.getElementById(id), fmt = n => n.toLocaleString("ru-RU").replace(/\u00a0/g, " ") + " so'm";
 const RM = matchMedia("(prefers-reduced-motion:reduce)").matches, G = (window.gsap && !RM) ? window.gsap : null;
@@ -85,20 +86,47 @@ function renderSummary() {
     if (G) G.to(ts, { v: t, duration: .45, ease: "power2.out", onUpdate: () => $("topv").textContent = fmt(Math.round(ts.v)) });
     else $("topv").textContent = fmt(t);
 }
-function renderZones() {
-    const list = [...ZONES].sort((a, b) => (b.pickup - a.pickup) || a.name.localeCompare(b.name, "uz"));
-    $("zsel").innerHTML = '<option value="">— Hududni tanlang —</option>' + list.map(z => `<option value="${z.id}"${z.id === zone ? " selected" : ""}>${z.name} — ${z.pickup ? "bepul" : fmt(z.fee)}</option>`).join("");
-    zoneInfo();
+const norm = s => String(s ?? "").trim().toLowerCase();
+let zact = -1;
+function zItems(q) { const k = norm(q); return ZONES.filter(z => !k || norm(z.raw).includes(k)).sort((a, b) => (b.pickup - a.pickup) || a.raw.localeCompare(b.raw, "uz")); }
+function openList() {
+    const cur = ZONES.find(z => z.id === zone), v = $("zq").value;
+    const items = zItems(cur && cur.raw === v ? "" : v);   // tanlangan hudud turganda butun ro'yxat ko'rinadi
+    $("zlist").innerHTML = items.length ? items.map((z, i) => `<li role="option" data-z="${z.id}" class="${i === zact ? "act" : ""}"><span>${z.pickup ? "🏃 " : ""}${z.name}</span><b>${z.pickup ? "bepul" : fmt(z.fee)}</b></li>`).join("") : '<li class="none">Bunday hudud yo\'q</li>';
+    $("zlist").hidden = false; $("zq").setAttribute("aria-expanded", "true");
+    const a = $("zlist").querySelector(".act"); if (a) a.scrollIntoView({ block: "nearest" });
 }
+function closeList() { $("zlist").hidden = true; $("zq").setAttribute("aria-expanded", "false"); zact = -1; }
+function pickZone(id) {
+    zone = id; const z = ZONES.find(x => x.id === id); $("zq").value = z ? z.raw : "";
+    closeList(); zoneInfo(); renderSummary();
+    if (G && z) G.fromTo("#zinfo", { y: 8, opacity: 0 }, { y: 0, opacity: 1, duration: .35, ease: "power2.out" });
+}
+function renderZones() { $("zq").value = (ZONES.find(x => x.id === zone) || {}).raw || ""; closeList(); zoneInfo(); }
 function zoneInfo() {
-    const z = ZONES.find(x => x.id === zone);
-    $("zinfo").innerHTML = z ? (z.pickup ? "🏃 Olib ketish: bepul" : `📍 ${z.name} gacha yetkazib berish: ${fmt(z.fee)}`) : "Hududni tanlang, yetkazib berish narxi shu yerda chiqadi.";
+    const z = ZONES.find(x => x.id === zone), t = $("zq").value.trim(), el = $("zinfo");
+    el.classList.remove("bad");
+    if (z) el.innerHTML = z.pickup ? "🏃 Olib ketish: bepul" : `📍 ${z.name} gacha yetkazib berish: ${fmt(z.fee)}`;
+    else if (t) { const n = zItems(t).length; el.classList.toggle("bad", !n); el.textContent = n ? "Ro'yxatdan hududni tanlang." : "❌ Bunday hudud yo'q."; }
+    else el.textContent = "Hududni yozing yoki ro'yxatdan tanlang, yetkazib berish narxi shu yerda chiqadi.";
     const ai = $("addrinfo"); ai.hidden = !(ADDR && z && !z.pickup); ai.textContent = `Manzil: ${ADDR} (o'zgartirish uchun botda /yangilash)`;
 }
-$("zsel").addEventListener("change", e => {
-    zone = e.target.value; zoneInfo(); renderSummary();
-    if (G && zone) G.fromTo("#zinfo", { y: 8, opacity: 0 }, { y: 0, opacity: 1, duration: .35, ease: "power2.out" });
+$("zq").addEventListener("input", () => {
+    const t = norm($("zq").value), ex = ZONES.find(z => norm(z.raw) === t);
+    zone = t && ex ? ex.id : ""; zact = -1; openList(); zoneInfo(); renderSummary();
 });
+$("zq").addEventListener("focus", openList);
+$("zq").addEventListener("click", openList);
+$("ztog").addEventListener("click", () => { if ($("zlist").hidden) openList(); else closeList(); });
+$("zlist").addEventListener("mousedown", e => e.preventDefault());
+$("zlist").addEventListener("click", e => { const li = e.target.closest("li[data-z]"); if (li) pickZone(li.dataset.z); });
+$("zq").addEventListener("keydown", e => {
+    const items = zItems($("zq").value);
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); zact = Math.max(0, Math.min(items.length - 1, zact + (e.key === "ArrowDown" ? 1 : -1))); openList(); }
+    else if (e.key === "Enter") { e.preventDefault(); const z = items[zact >= 0 ? zact : (items.length === 1 ? 0 : -1)]; if (z) pickZone(z.id); }
+    else if (e.key === "Escape") closeList();
+});
+document.addEventListener("click", e => { if (!e.target.closest("#combo")) closeList(); });
 $("go").onclick = () => {
     renderZones(); renderSummary(); show("checkout");
     if (G) G.from("#summary .row", { x: -24, opacity: 0, stagger: .07, duration: .4, delay: .1, ease: "power2.out" });
@@ -107,7 +135,7 @@ $("back").onclick = () => show("menu");
 $("again").onclick = () => { for (const k in cart) { delete cart[k]; upd(k); } show("menu"); };
 $("send").onclick = () => {
     const zn = ZONES.find(x => x.id === zone);
-    if (!zn) { $("err").textContent = "Yetkazib berish hududini tanlang."; if (G) G.fromTo("#zsel", { x: -8 }, { x: 0, duration: .5, ease: "elastic.out(1,.3)" }); return; }
+    if (!zn) { const t = $("zq").value.trim(); $("err").textContent = t ? `Bunday hudud yo'q: «${t}». Ro'yxatdan tanlang.` : "Yetkazib berish hududini tanlang."; if (G) G.fromTo("#zq", { x: -8 }, { x: 0, duration: .5, ease: "elastic.out(1,.3)" }); return; }
     const address = "";  // manzilni bot ro'yxatdan o'tishdagi ma'lumotdan oladi
     $("err").textContent = "";
     const order = {

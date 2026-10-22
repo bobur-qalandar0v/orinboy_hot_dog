@@ -25,13 +25,15 @@ STATUS_MSG = {
     "delivering": "🛵 buyurtmangiz yo'lda!",
     "done": "✅ buyurtmangiz yetkazildi. Yoqimli ishtaha! 🌭",
     "cancelled": "❌ buyurtmangiz bekor qilindi. Savollar bo'lsa, operator bilan bog'laning.",
+    "completed": "🎉 buyurtmangiz yakunlandi. Rahmat!",
 }
 # Holatlar faqat oldinga yuradi; orqaga qaytib bo'lmaydi.
 FLOW = {
     "new": ["cooking", "cancelled"],
     "cooking": ["delivering", "cancelled"],
     "delivering": ["done", "cancelled"],
-    "done": [],
+    "done": ["completed"],
+    "completed": [],
     "cancelled": [],
 }
 
@@ -108,6 +110,34 @@ def get_menu(db):
     cur = db.execute("SELECT id, cat, name, descr, price, sold FROM menu ORDER BY pos, rowid")
     return [{"id": r[0], "cat": r[1], "name": r[2], "desc": r[3], "price": r[4], "sold": bool(r[5])}
             for r in cur.fetchall()]
+
+
+def rating_kb(oid):
+    return InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text=f"{n}⭐", callback_data=f"rate:{oid}:{n}") for n in range(1, 6)]])
+
+
+def queue_ahead(db, oid):
+    """Shu buyurtmadan oldin hali tayyorlanmagan (yangi yoki tayyorlanayotgan) buyurtmalar soni."""
+    return db.execute("SELECT COUNT(*) FROM orders WHERE status IN ('new', 'cooking') AND id < ?", (oid,)).fetchone()[0]
+
+
+async def notify_queue(db, bot):
+    """Navbati o'zgargan mijozlarga yangi o'rnini yuboradi."""
+    for oid, uid, last in db.execute("SELECT id, uid, ahead FROM orders WHERE status='new' ORDER BY id").fetchall():
+        n = queue_ahead(db, oid)
+        if n == last:
+            continue
+        db.execute("UPDATE orders SET ahead=? WHERE id=?", (n, oid))
+        db.commit()
+        if last is None:
+            continue
+        text = ("🎉 Sizning navbatingiz keldi! Buyurtmangiz tayyorlanmoqda." if n == 0
+                else f"⏳ Buyurtma #{oid}: sizdan oldin {n} ta buyurtma qoldi.")
+        try:
+            await bot.send_message(uid, text)
+        except Exception:
+            pass
 
 
 def make_app(db, bot, password, kb_for):
@@ -204,7 +234,7 @@ def make_app(db, bot, password, kb_for):
             raise web.HTTPConflict(text="Bu holatga o'tib bo'lmaydi")
         uid = row[0]
         db.execute("UPDATE orders SET status=? WHERE id=?", (status, oid))
-        if status in ("done", "cancelled"):
+        if status in ("done", "completed", "cancelled"):
             db.execute("DELETE FROM pending WHERE uid=?", (uid,))
         db.commit()
         notified = False
@@ -212,11 +242,15 @@ def make_app(db, bot, password, kb_for):
             await bot.send_message(uid, f"Buyurtma #{oid}: {STATUS_MSG[status]}", reply_markup=kb_for(uid))
             notified = True
             if status == "done":
-                stars = InlineKeyboardMarkup(inline_keyboard=[[
-                    InlineKeyboardButton(text=f"{n}⭐", callback_data=f"rate:{oid}:{n}") for n in range(1, 6)]])
-                await bot.send_message(uid, "Xizmatimizni baholang, fikringiz biz uchun muhim:", reply_markup=stars)
+                kb = InlineKeyboardMarkup(inline_keyboard=[[
+                    InlineKeyboardButton(text="✅ Qabul qildim", callback_data=f"recv:{oid}")]])
+                await bot.send_message(uid, "Buyurtmani qabul qilgach, quyidagi tugmani bosing:", reply_markup=kb)
+            elif status == "completed":
+                await bot.send_message(uid, "Xizmatimizni baholang, fikringiz biz uchun muhim:",
+                                       reply_markup=rating_kb(oid))
         except Exception:
             pass
+        await notify_queue(db, bot)
         return web.json_response({"ok": True, "notified": notified})
 
     # ---- Menyu ----

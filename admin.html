@@ -308,6 +308,10 @@
         background: #e6a29b;
         color: #3a1c0d;
       }
+      .s-completed {
+        background: #c9b8f0;
+        color: #3a1c0d;
+      }
       .oi {
         margin: 6px 0 10px;
         padding-left: 18px;
@@ -518,6 +522,7 @@
         cooking: "Tayyorlanmoqda",
         delivering: "Yo'lda",
         done: "Yetkazildi",
+        completed: "Yakunlangan",
         cancelled: "Bekor qilingan",
       };
       const MON = [
@@ -539,7 +544,7 @@
         O = [],
         M = [],
         Z = [],
-        filter = "all",
+        filter = "active",
         tab = "dash",
         q = "",
         editId = null,
@@ -549,7 +554,8 @@
         new: ["cooking", "cancelled"],
         cooking: ["delivering", "cancelled"],
         delivering: ["done", "cancelled"],
-        done: [],
+        done: ["completed"],
+        completed: [],
         cancelled: [],
       };
       const post = (u, method, body) =>
@@ -653,18 +659,25 @@
       }
 
       function orders() {
-        const L = O.filter((o) => filter === "all" || o.status === filter);
+        const isA = (o) => !["completed", "cancelled"].includes(o.status);
+        const L = O.filter(
+          (o) =>
+            filter === "all" ||
+            (filter === "active" ? isA(o) : o.status === filter),
+        );
         const cnt = (s) =>
-          O.filter((o) => s === "all" || o.status === s).length;
+          O.filter(
+            (o) => s === "all" || (s === "active" ? isA(o) : o.status === s),
+          ).length;
         $("#orders").innerHTML =
-          `<div class="chips">${["all", ...Object.keys(ST)].map((s) => `<button data-f="${s}" class="${filter === s ? "on" : ""}">${s === "all" ? "Hammasi" : ST[s]} (${cnt(s)})</button>`).join("")}</div>` +
+          `<div class="chips">${["active", "all", ...Object.keys(ST)].map((s) => `<button data-f="${s}" class="${filter === s ? "on" : ""}">${s === "all" ? "Hammasi" : s === "active" ? "Faol" : ST[s]} (${cnt(s)})</button>`).join("")}</div>` +
           (L.map(
             (
               o,
             ) => `<div class="card order"><div class="oh"><b>#${o.id}</b><span class="tag s-${o.status}">${ST[o.status]}</span><span class="tag">${o.pay === "card" ? "💳 Karta" : "💵 Naqd"}</span>${o.rating ? `<span class="tag">⭐ ${o.rating}</span>` : ""}<span class="muted">${ago(o.created)}</span><b style="margin-left:auto">${fmt(o.total)}</b></div>
    <div><b>${esc(o.name || "Noma'lum")}</b> · ${esc(o.phone || "")}<br><span class="muted">📍 ${esc(o.address)}</span>${o.zone ? `<br><span class="muted">🛵 ${esc(o.zone)}${o.delivery ? " · " + fmt(o.delivery) : ""}</span>` : ""}${o.comment ? `<br><span class="muted">💬 ${esc(o.comment)}</span>` : ""}</div>
    <ul class="oi">${o.items.map((i) => `<li>${esc(i.name)} × ${i.qty}</li>`).join("")}</ul>
-   <div class="act">${(NEXT[o.status] || []).map((s) => `<button data-id="${o.id}" data-s="${s}">${ST[s]}</button>`).join("") || '<span class="muted">Yakunlangan</span>'}</div></div>`,
+   <div class="act">${(NEXT[o.status] || []).map((s) => `<button data-id="${o.id}" data-s="${s}">${s === "completed" ? "Yakunlash" : ST[s]}</button>`).join("") || '<span class="muted">Yakunlangan</span>'}</div></div>`,
           ).join("") || '<p class="muted">Buyurtma yo\'q.</p>');
       }
 

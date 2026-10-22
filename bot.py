@@ -38,7 +38,7 @@ db.execute("CREATE TABLE IF NOT EXISTS pending(uid INTEGER PRIMARY KEY, total IN
 db.execute("CREATE TABLE IF NOT EXISTS orders(id INTEGER PRIMARY KEY AUTOINCREMENT, uid INTEGER, created TEXT, "
            "items TEXT, total INTEGER, pay TEXT, address TEXT, comment TEXT, status TEXT DEFAULT 'new')")
 for _sql in ("ALTER TABLE orders ADD COLUMN rating INTEGER", "ALTER TABLE orders ADD COLUMN zone TEXT",
-             "ALTER TABLE orders ADD COLUMN zone_id TEXT", "ALTER TABLE orders ADD COLUMN delivery INTEGER DEFAULT 0",
+             "ALTER TABLE orders ADD COLUMN zone_id TEXT", "ALTER TABLE orders ADD COLUMN delivery INTEGER DEFAULT 0", "ALTER TABLE orders ADD COLUMN ahead INTEGER",
              "ALTER TABLE users ADD COLUMN zone TEXT"):
     try:
         db.execute(_sql)
@@ -245,6 +245,8 @@ async def on_order(message: Message):
     else:
         db.execute("DELETE FROM pending WHERE uid=?", (uid,))
     db.execute("UPDATE users SET zone=? WHERE id=?", (zone["id"], uid))
+    ahead = admin.queue_ahead(db, oid)
+    db.execute("UPDATE orders SET ahead=? WHERE id=?", (ahead, oid))
     db.commit()
 
     lines = "\n".join(f"• {i['name']} × {i['qty']} = {fmt(i['price'] * i['qty'])}" for i in items)
@@ -259,17 +261,19 @@ async def on_order(message: Message):
     await bot.send_message(ADMIN_CHAT_ID, text)
 
     done = "Buyurtmangiz o'zgartirildi! ✏️" if edit_id else "Buyurtmangiz qabul qilindi! 🌭"
+    queue_text = ("Sizdan oldin buyurtma yo'q, navbat sizniki! 🎉" if ahead == 0
+                  else f"Sizdan oldin {ahead} ta buyurtma bor, siz {ahead + 1}-chisiz.")
     if by_card and CARD_NUMBER:
         await message.answer(
-            f"{done}\n\nMahsulotlar: {fmt(subtotal)}\n{fee_label}: {fmt(delivery)}\nTo'lov summasi: <b>{fmt(total)}</b>\n"
+            f"{done}\n{queue_text}\n\nMahsulotlar: {fmt(subtotal)}\n{fee_label}: {fmt(delivery)}\nTo'lov summasi: <b>{fmt(total)}</b>\n"
             f"Karta raqami (bosib nusxalang):\n<code>{html.escape(CARD_NUMBER)}</code>\n"
             f"Karta egasi: {html.escape(CARD_OWNER)}\n\n"
             "Pulni o'tkazgach, to'lov chekini (skrinshot) shu chatga yuboring.",
             parse_mode="HTML", reply_markup=kb_for(uid))
     elif by_card:
-        await message.answer(f"{done} Operator karta raqamini yuboradi.", reply_markup=kb_for(uid))
+        await message.answer(f"{done}\n{queue_text}\nOperator karta raqamini yuboradi.", reply_markup=kb_for(uid))
     else:
-        await message.answer(f"{done} Jami: {fmt(total)}{'' if zone['pickup'] else ' (yetkazib berish bilan)'}. Tez orada bog'lanamiz. "
+        await message.answer(f"{done}\n{queue_text}\nJami: {fmt(total)}{'' if zone['pickup'] else ' (yetkazib berish bilan)'}. Tez orada bog'lanamiz. "
                              "Tayyorlash boshlanmaguncha buyurtmani tahrirlashingiz yoki bekor qilishingiz mumkin.",
                              reply_markup=kb_for(uid))
 
@@ -314,6 +318,24 @@ async def do_cancel(cb: CallbackQuery):
     await bot.send_message(ADMIN_CHAT_ID, f"❌ Mijoz buyurtma #{oid} ni bekor qildi.\n"
                                           f"{user['name']}, {user['phone']}\n"
                                           f"To'lov turi: {'💳 Karta' if row[2] == 'card' else '💵 Naqd'}")
+    await admin.notify_queue(db, bot)
+    await cb.answer()
+
+
+# ---- Mijoz buyurtmani qabul qildi ----
+@dp.callback_query(F.data.startswith("recv:"))
+async def on_received(cb: CallbackQuery):
+    oid = int(cb.data.split(":")[1])
+    row = db.execute("SELECT uid, status FROM orders WHERE id=?", (oid,)).fetchone()
+    if not row or row[0] != cb.from_user.id:
+        await cb.answer()
+        return
+    await cb.message.edit_text("✅ Rahmat! Buyurtmani qabul qilganingiz tasdiqlandi.")
+    if row[1] == "done":
+        db.execute("UPDATE orders SET status='completed' WHERE id=?", (oid,))
+        db.commit()
+        await bot.send_message(cb.from_user.id, "Xizmatimizni baholang, fikringiz biz uchun muhim:",
+                               reply_markup=admin.rating_kb(oid))
     await cb.answer()
 
 
@@ -389,7 +411,7 @@ async def on_pay_decision(callback: CallbackQuery):
 
 
 async def main():
-    print("Bot ishga tushdi: v7 (yetkazib berish hududlari)")
+    print("Bot ishga tushdi: v8 (navbat, qabul qildim, hudud qidiruvi)")
     await admin.run(db, bot, kb_for)
     await dp.start_polling(bot)
 
