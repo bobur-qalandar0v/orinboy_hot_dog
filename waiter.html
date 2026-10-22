@@ -839,6 +839,7 @@
           .join("");
         view("menu");
         bar();
+        syncChips();
       }
       $("#chips").onclick = (e) => {
         const b = e.target.closest("button");
@@ -847,6 +848,25 @@
             .getElementById("c" + b.dataset.i)
             .scrollIntoView({ behavior: "smooth" });
       };
+      function syncChips() {
+        if ($("#menu").hidden) return;
+        const hs = [...document.querySelectorAll("h2.cat")],
+          bs = [...$("#chips").children];
+        if (!hs.length || !bs.length) return;
+        let a = 0;
+        hs.forEach((h, i) => {
+          if (h.getBoundingClientRect().top <= 150) a = i;
+        });
+        if (innerHeight + scrollY >= document.body.scrollHeight - 4)
+          a = hs.length - 1; // sahifa oxirida oxirgi bo'lim faol
+        if (bs[a].classList.contains("on")) return;
+        bs.forEach((b, i) => b.classList.toggle("on", i === a));
+        $("#chips").scrollTo({
+          left: Math.max(0, bs[a].offsetLeft - 16),
+          behavior: "smooth",
+        });
+      }
+      addEventListener("scroll", syncChips, { passive: true });
       $("#list").onclick = (e) => {
         const b = e.target.closest("button");
         if (!b || b.disabled) return;

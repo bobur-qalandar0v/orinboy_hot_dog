@@ -10,6 +10,7 @@ import json
 import os
 import re
 import secrets
+import sqlite3
 import time
 
 from aiohttp import web
@@ -31,6 +32,10 @@ def init_zal(db):
         number INTEGER, waiter_id INTEGER, created TEXT, items TEXT, total INTEGER, comment TEXT,
         status TEXT DEFAULT 'open', printed INTEGER DEFAULT 0, closed TEXT);
     """)
+    try:
+        db.execute("ALTER TABLE waiters ADD COLUMN pw_plain TEXT")  # admin ko'ra olishi uchun
+    except sqlite3.OperationalError:
+        pass
     if not db.execute("SELECT 1 FROM zal_tables LIMIT 1").fetchone():
         db.executemany("INSERT INTO zal_tables(zal, number) VALUES (?,?)",
                        [("1-zal", n) for n in range(1, 6)] + [("2-zal", n) for n in range(6, 11)])
@@ -87,8 +92,8 @@ def add_routes(app, db, now, get_menu, guard):
         if db.execute("SELECT 1 FROM waiters WHERE login=?", (login,)).fetchone():
             return err("Bu login band. Boshqasini tanlang.", 409)
         salt, h = hash_pw(pw)
-        db.execute("INSERT INTO waiters(name, phone, login, salt, pwhash, created) VALUES (?,?,?,?,?,?)",
-                   (name, "+" + digits, login, salt, h, now().strftime("%Y-%m-%d %H:%M:%S")))
+        db.execute("INSERT INTO waiters(name, phone, login, salt, pwhash, pw_plain, created) VALUES (?,?,?,?,?,?,?)",
+                   (name, "+" + digits, login, salt, h, pw, now().strftime("%Y-%m-%d %H:%M:%S")))
         db.commit()
         return web.json_response({"ok": True})
 
@@ -174,7 +179,7 @@ def add_routes(app, db, now, get_menu, guard):
 
     # ------------------------- admin tomoni -------------------------
     async def a_waiters(request):
-        return web.json_response(rows("SELECT id, name, phone, login, status, created FROM waiters ORDER BY id DESC"))
+        return web.json_response(rows("SELECT id, name, phone, login, pw_plain AS password, status, created FROM waiters ORDER BY id DESC"))
 
     async def a_waiter_status(request):
         guard(request)
@@ -190,9 +195,16 @@ def add_routes(app, db, now, get_menu, guard):
     async def a_waiter_password(request):
         guard(request)
         wid = int(request.match_info["id"])
-        pw = "".join(secrets.choice("abcdefghjkmnpqrstuvwxyz23456789") for _ in range(8))
+        try:
+            pw = str((await request.json()).get("password", "")).strip()
+        except Exception:
+            pw = ""
+        if pw and len(pw) < 6:
+            return err("Parol kamida 6 ta belgidan iborat bo'lsin.")
+        if not pw:
+            pw = "".join(secrets.choice("abcdefghjkmnpqrstuvwxyz23456789") for _ in range(8))
         salt, h = hash_pw(pw)
-        db.execute("UPDATE waiters SET salt=?, pwhash=? WHERE id=?", (salt, h, wid))
+        db.execute("UPDATE waiters SET salt=?, pwhash=?, pw_plain=? WHERE id=?", (salt, h, pw, wid))
         db.execute("DELETE FROM sessions WHERE waiter_id=?", (wid,))
         db.commit()
         return web.json_response({"password": pw})

@@ -447,6 +447,18 @@
         cursor: pointer;
         padding: 0 0 0 4px;
       }
+      .pw {
+        font-family: monospace;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+      }
+      .eye {
+        border: 0;
+        background: none;
+        cursor: pointer;
+        font-size: 17px;
+        padding: 0 4px;
+      }
       [hidden] {
         display: none !important;
       }
@@ -927,6 +939,11 @@
         );
         load();
       };
+      const pwShown = new Set();
+      const pwCell = (w) =>
+        w.password
+          ? `<span class="pw">${pwShown.has(w.id) ? esc(w.password) : "••••••••"}</span> <button class="eye" data-eye="${w.id}" aria-label="Parolni ko'rsatish yoki yashirish">${pwShown.has(w.id) ? "🙈" : "👁"}</button>`
+          : '<span class="muted">—</span>';
       const WST = {
         approved: "Tasdiqlangan",
         pending: "Kutilmoqda",
@@ -978,12 +995,12 @@
               .join("") || '<p class="muted">Stol yo\'q.</p>');
         } else
           body =
-            `<div class="card"><div class="tablewrap"><table><tr><th>Ofitsant</th><th>Telefon</th><th>Login</th><th>Ro'yxatdan o'tgan</th><th>Holat</th><th></th></tr>` +
+            `<div class="card"><div class="tablewrap"><table><tr><th>Ofitsant</th><th>Telefon</th><th>Login</th><th>Parol</th><th>Ro'yxatdan o'tgan</th><th>Holat</th><th></th></tr>` +
             (W.map(
               (w) =>
-                `<tr><td><b>${esc(w.name)}</b></td><td>${esc(w.phone)}</td><td>${esc(w.login)}</td><td>${ago(w.created)}</td><td><span class="tag ${w.status === "approved" ? "s-done" : w.status === "pending" ? "s-new" : "s-cancelled"}">${WST[w.status]}</span></td><td><div class="act">${w.status !== "approved" ? `<button data-wst="${w.id}:approved">Tasdiqlash</button>` : `<button data-wst="${w.id}:blocked">Bloklash</button>`}<button data-wpw="${w.id}">Yangi parol</button><button data-wdel="${w.id}">O'chirish</button></div></td></tr>`,
+                `<tr><td><b>${esc(w.name)}</b></td><td>${esc(w.phone)}</td><td>${esc(w.login)}</td><td>${pwCell(w)}</td><td>${ago(w.created)}</td><td><span class="tag ${w.status === "approved" ? "s-done" : w.status === "pending" ? "s-new" : "s-cancelled"}">${WST[w.status]}</span></td><td><div class="act">${w.status !== "approved" ? `<button data-wst="${w.id}:approved">Tasdiqlash</button>` : `<button data-wst="${w.id}:blocked">Bloklash</button>`}<button data-wpw="${w.id}">Parolni o'zgartirish</button><button data-wdel="${w.id}">O'chirish</button></div></td></tr>`,
             ).join("") ||
-              '<tr><td colspan="6" class="muted">Ofitsant yo\'q.</td></tr>') +
+              '<tr><td colspan="7" class="muted">Ofitsant yo\'q.</td></tr>') +
             `</table></div></div><p class="muted">Ofitsantlar shu manzil orqali kiradi: <b>${esc(location.origin)}/waiter</b></p>`;
         $("#zal").innerHTML = `<div class="chips">${chips}</div>` + body;
       }
@@ -1045,20 +1062,27 @@
             toast("Saqlandi");
             return load();
           }
+          if (t.dataset.eye) {
+            const id = +t.dataset.eye;
+            pwShown.has(id) ? pwShown.delete(id) : pwShown.add(id);
+            return zalTab();
+          }
           if (t.dataset.wpw) {
-            if (
-              !confirm("Yangi parol yaratilsinmi? Eski parol ishlamay qoladi.")
-            )
+            const v = prompt(
+              "Yangi parolni yozing (kamida 6 ta belgi).\nBo'sh qoldirsangiz, tasodifiy parol yaratiladi:",
+              "",
+            );
+            if (v === null) return;
+            if (v.trim() && v.trim().length < 6) {
+              toast("Parol kamida 6 ta belgi bo'lsin");
               return;
-            const r = await post(
-              `/api/waiters/${t.dataset.wpw}/password`,
-              "POST",
-            );
-            prompt(
-              "Yangi parol (ofitsantga bering, qayta ko'rsatilmaydi):",
-              r.password,
-            );
-            return;
+            }
+            await post(`/api/waiters/${t.dataset.wpw}/password`, "POST", {
+              password: v.trim(),
+            });
+            pwShown.add(+t.dataset.wpw);
+            toast("Parol o'zgartirildi");
+            return load();
           }
           if (t.dataset.wdel) {
             if (confirm("Ofitsantni o'chirasizmi?")) {
