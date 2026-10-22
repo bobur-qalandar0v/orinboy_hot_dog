@@ -11,6 +11,8 @@ import base64
 import hmac
 import json
 import os
+import secrets
+import time
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -153,6 +155,10 @@ async def notify_queue(db, bot):
 
 def make_app(db, bot, password, kb_for):
     tasks = set()
+    admin_fails = {}
+    SESSION = 7 * 24 * 3600
+    db.execute("CREATE TABLE IF NOT EXISTS admin_sessions(token TEXT PRIMARY KEY, created INTEGER)")
+    db.commit()
 
     def rows(sql, args=()):
         cur = db.execute(sql, args)
@@ -163,23 +169,50 @@ def make_app(db, bot, password, kb_for):
         if request.headers.get("X-Admin") != "1":
             raise web.HTTPForbidden()
 
+    def valid_session(request):
+        tok = request.cookies.get("adm", "")
+        r = db.execute("SELECT created FROM admin_sessions WHERE token=?", (tok,)).fetchone() if tok else None
+        return bool(r) and time.time() - r[0] < SESSION
+
     @web.middleware
     async def auth(request, handler):
         if (request.method == "GET" and request.path in ("/api/menu", "/api/zones")) or request.path == "/waiter" \
-                or request.path.startswith(("/api/w/", "/img/")):
-            return await handler(request)  # menyu hammaga ochiq (maxfiy ma'lumot yo'q)
-        ok = False
-        header = request.headers.get("Authorization", "")
-        if header.startswith("Basic "):
-            try:
-                _, _, pw = base64.b64decode(header[6:]).decode().partition(":")
-                ok = hmac.compare_digest(pw.encode(), password.encode())
-            except Exception:
-                ok = False
-        if not ok:
-            return web.Response(status=401, text="Parol kerak",
-                                headers={"WWW-Authenticate": 'Basic realm="O\'rinboy admin"'})
+                or request.path.startswith(("/api/w/", "/img/")) \
+                or request.path in ("/", "/api/admin/login", "/api/admin/logout"):
+            return await handler(request)  # ochiq yo'llar (maxfiy ma'lumot yo'q)
+        if not valid_session(request):
+            return web.json_response({"error": "login"}, status=401)
         return await handler(request)
+
+    async def admin_login(request):
+        ip = request.headers.get("X-Forwarded-For", request.remote or "").split(",")[0].strip()
+        recent = [t for t in admin_fails.get(ip, []) if time.time() - t < 600]
+        if len(recent) >= 5:
+            return web.json_response({"error": "Juda ko'p urinish. 10 daqiqadan keyin qayta urinib ko'ring."}, status=429)
+        try:
+            pw = str((await request.json()).get("password", ""))
+        except Exception:
+            pw = ""
+        if not hmac.compare_digest(pw.encode(), password.encode()):
+            admin_fails[ip] = recent + [time.time()]
+            return web.json_response({"error": "Parol noto'g'ri."}, status=401)
+        admin_fails.pop(ip, None)
+        token = secrets.token_urlsafe(32)
+        db.execute("DELETE FROM admin_sessions WHERE created < ?", (int(time.time()) - SESSION,))
+        db.execute("INSERT INTO admin_sessions VALUES (?,?)", (token, int(time.time())))
+        db.commit()
+        resp = web.json_response({"ok": True})
+        resp.set_cookie("adm", token, max_age=SESSION, httponly=True, samesite="Strict", path="/",
+                        secure=request.secure or request.headers.get("X-Forwarded-Proto") == "https")
+        return resp
+
+    async def admin_logout(request):
+        guard(request)
+        db.execute("DELETE FROM admin_sessions WHERE token=?", (request.cookies.get("adm", ""),))
+        db.commit()
+        resp = web.json_response({"ok": True})
+        resp.del_cookie("adm", path="/")
+        return resp
 
     async def index(request):
         return web.FileResponse(HTML_PATH)
@@ -372,6 +405,8 @@ def make_app(db, bot, password, kb_for):
     app = web.Application(middlewares=[auth], client_max_size=2 * 1024 * 1024)
     app.add_routes([
         web.get("/", index),
+        web.post("/api/admin/login", admin_login),
+        web.post("/api/admin/logout", admin_logout),
         web.get("/api/stats", stats),
         web.get("/api/users", users),
         web.get("/api/orders", orders),
