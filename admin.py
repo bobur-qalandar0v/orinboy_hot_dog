@@ -15,6 +15,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+import zal
 from aiohttp import web
 
 BASE = os.path.dirname(os.path.abspath(__file__))
@@ -102,6 +103,7 @@ def get_zones(db):
 def init_menu(db):
     db.execute("CREATE TABLE IF NOT EXISTS menu(id TEXT PRIMARY KEY, cat TEXT, name TEXT, descr TEXT, "
                "price INTEGER, sold INTEGER DEFAULT 0, pos INTEGER)")
+    db.execute("CREATE TABLE IF NOT EXISTS menu_images(id TEXT PRIMARY KEY, mime TEXT, data BLOB, updated INTEGER)")
     if not db.execute("SELECT 1 FROM menu LIMIT 1").fetchone():
         seed = os.path.join(BASE, "seed_menu.json")  # export_data.py yaratadi
         if os.path.exists(seed):
@@ -115,8 +117,9 @@ def init_menu(db):
 
 
 def get_menu(db):
-    cur = db.execute("SELECT id, cat, name, descr, price, sold FROM menu ORDER BY pos, rowid")
-    return [{"id": r[0], "cat": r[1], "name": r[2], "desc": r[3], "price": r[4], "sold": bool(r[5])}
+    cur = db.execute("SELECT m.id, m.cat, m.name, m.descr, m.price, m.sold, COALESCE(i.updated, 0) "
+                     "FROM menu m LEFT JOIN menu_images i ON i.id = m.id ORDER BY m.pos, m.rowid")
+    return [{"id": r[0], "cat": r[1], "name": r[2], "desc": r[3], "price": r[4], "sold": bool(r[5]), "img": r[6]}
             for r in cur.fetchall()]
 
 
@@ -162,7 +165,8 @@ def make_app(db, bot, password, kb_for):
 
     @web.middleware
     async def auth(request, handler):
-        if request.method == "GET" and request.path in ("/api/menu", "/api/zones"):
+        if (request.method == "GET" and request.path in ("/api/menu", "/api/zones")) or request.path == "/waiter" \
+                or request.path.startswith(("/api/w/", "/img/")):
             return await handler(request)  # menyu hammaga ochiq (maxfiy ma'lumot yo'q)
         ok = False
         header = request.headers.get("Authorization", "")
@@ -182,6 +186,7 @@ def make_app(db, bot, password, kb_for):
 
     async def stats(request):
         orders = rows("SELECT created, items, total, pay FROM orders WHERE status != 'cancelled'")
+        orders += rows("SELECT created, items, total, 'cash' AS pay FROM zal_orders")
         now = tashkent_now()
         today = now.strftime("%Y-%m-%d")
         daily = {(now - timedelta(days=i)).strftime("%Y-%m-%d"): [0, 0] for i in range(13, -1, -1)}
@@ -208,6 +213,7 @@ def make_app(db, bot, password, kb_for):
             "orders": n, "revenue": revenue, "avg": round(revenue / n) if n else 0,
             "users": db.execute("SELECT COUNT(*) FROM users").fetchone()[0],
             "new": db.execute("SELECT COUNT(*) FROM orders WHERE status='new'").fetchone()[0],
+            "zal_new": db.execute("SELECT COUNT(*) FROM zal_orders WHERE status='open' AND printed=0").fetchone()[0],
             "today_orders": t_orders, "today_revenue": t_revenue,
             "rating_count": rc, "rating_avg": round(ra, 1) if ra else 0,
             "delivery_revenue": db.execute("SELECT COALESCE(SUM(delivery), 0) FROM orders WHERE status != 'cancelled'").fetchone()[0],
@@ -363,7 +369,7 @@ def make_app(db, bot, password, kb_for):
             t.add_done_callback(tasks.discard)
         return web.json_response({"ok": True, "sent": sent})
 
-    app = web.Application(middlewares=[auth])
+    app = web.Application(middlewares=[auth], client_max_size=2 * 1024 * 1024)
     app.add_routes([
         web.get("/", index),
         web.get("/api/stats", stats),
@@ -380,6 +386,7 @@ def make_app(db, bot, password, kb_for):
         web.put("/api/zones/{id}", zone_update),
         web.delete("/api/zones/{id}", zone_delete),
     ])
+    zal.add_routes(app, db, tashkent_now, get_menu, guard)
     return app
 
 

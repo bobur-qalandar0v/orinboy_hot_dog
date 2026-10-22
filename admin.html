@@ -410,6 +410,43 @@
         font: inherit;
         margin-top: 4px;
       }
+      .th {
+        width: 44px;
+        height: 44px;
+        border-radius: 10px;
+        object-fit: cover;
+        border: 2px solid var(--ink);
+        vertical-align: middle;
+        margin-right: 8px;
+      }
+      .tg {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .tchip {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        border: 2px solid var(--ink);
+        border-radius: 12px;
+        padding: 6px 12px;
+        font-weight: 800;
+        background: var(--card);
+      }
+      .tchip.busy {
+        background: #e6a29b;
+        color: #3a1c0d;
+      }
+      .tchip button {
+        border: 0;
+        background: none;
+        color: var(--red);
+        font-size: 18px;
+        font-weight: 800;
+        cursor: pointer;
+        padding: 0 0 0 4px;
+      }
       [hidden] {
         display: none !important;
       }
@@ -426,6 +463,9 @@
         <button data-t="users">Mijozlar</button>
         <button data-t="menu">Menyu</button>
         <button data-t="zones">Yetkazish</button>
+        <button data-t="zal">
+          Zal<span class="badge" id="zalb" hidden>0</span>
+        </button>
       </nav>
     </header>
     <main>
@@ -434,6 +474,7 @@
       <section id="users" hidden></section>
       <section id="menu" hidden></section>
       <section id="zones" hidden></section>
+      <section id="zal" hidden></section>
     </main>
     <div id="toast" role="status"></div>
     <dialog id="dlg">
@@ -498,6 +539,26 @@
         </div>
       </form>
     </dialog>
+    <dialog id="dlgt">
+      <form id="tf">
+        <h3>Stol qo'shish</h3>
+        <label
+          >Zal nomi<input id="tz" required maxlength="30" placeholder="1-zal"
+        /></label>
+        <label
+          >Stol raqami: dan<input id="ta" type="number" min="1" required
+        /></label>
+        <label>gacha<input id="tb" type="number" min="1" required /></label>
+        <p class="muted" style="margin: 8px 0 0">
+          Bitta stol uchun ikkala joyga bir xil son yozing.
+        </p>
+        <div class="act" style="margin-top: 14px">
+          <button type="submit">Qo'shish</button
+          ><button type="button" id="cancelt">Bekor</button>
+        </div>
+      </form>
+    </dialog>
+    <input type="file" id="imgf" accept="image/*" hidden />
 
     <script>
       const $ = (s) => document.querySelector(s);
@@ -544,6 +605,11 @@
         O = [],
         M = [],
         Z = [],
+        W = [],
+        T = [],
+        ZO = [],
+        zsub = "orders",
+        imgTarget = null,
         filter = "active",
         tab = "dash",
         q = "",
@@ -683,12 +749,15 @@
 
       async function load() {
         try {
-          [S, U, O, M, Z] = await Promise.all([
+          [S, U, O, M, Z, W, T, ZO] = await Promise.all([
             api("/api/stats"),
             api("/api/users"),
             api("/api/orders"),
             api("/api/menu"),
             api("/api/zones"),
+            api("/api/waiters"),
+            api("/api/tables"),
+            api("/api/zal/orders"),
           ]);
         } catch (e) {
           toast("Ma'lumot olinmadi");
@@ -697,13 +766,18 @@
         const b = $("#newb");
         b.hidden = !S.new;
         b.textContent = S.new;
-        document.title = (S.new ? `(${S.new}) ` : "") + "O'rinboy Admin";
+        const zb = $("#zalb");
+        zb.hidden = !S.zal_new;
+        zb.textContent = S.zal_new;
+        const nn = S.new + S.zal_new;
+        document.title = (nn ? `(${nn}) ` : "") + "O'rinboy Admin";
         if (tab === "dash") dash();
         else if (tab === "orders") orders();
         else if (tab === "menu") menuTab();
         else if (tab === "zones") {
           if (document.activeElement.id !== "zq") zonesTab();
-        } else if (document.activeElement.id !== "qs") users();
+        } else if (tab === "zal") zalTab();
+        else if (document.activeElement.id !== "qs") users();
       }
       $("#nav").onclick = (e) => {
         const b = e.target.closest("button");
@@ -712,7 +786,7 @@
         [...$("#nav").children].forEach((x) =>
           x.classList.toggle("on", x === b),
         );
-        ["dash", "orders", "users", "menu", "zones"].forEach(
+        ["dash", "orders", "users", "menu", "zones", "zal"].forEach(
           (t) => ($("#" + t).hidden = t !== tab),
         );
         load();
@@ -853,6 +927,190 @@
         );
         load();
       };
+      const WST = {
+        approved: "Tasdiqlangan",
+        pending: "Kutilmoqda",
+        blocked: "Bloklangan",
+      };
+      const zOrder = (
+        o,
+      ) => `<div class="card order"><div class="oh"><b>${esc(o.zal)} · Stol ${o.number}</b><span class="tag ${o.status === "open" ? "s-new" : "s-completed"}">${o.status === "open" ? "Band" : "Yopilgan"}</span><span class="tag ${o.printed ? "" : "s-cooking"}">${o.printed ? "🖨 Chiqarilgan" : "Chek chiqarilmagan"}</span><span class="muted">${ago(o.created)}</span><b style="margin-left:auto">${fmt(o.total)}</b></div>
+<div>Ofitsant: <b>${esc(o.waiter || "—")}</b> · ${esc(o.waiter_phone || "")}${o.comment ? `<br><span class="muted">💬 ${esc(o.comment)}</span>` : ""}</div>
+<ul class="oi">${o.items.map((i) => `<li>${esc(i.name)} × ${i.qty} <span class="muted">— ${fmt(i.price * i.qty)}</span></li>`).join("")}</ul>
+<div class="act"><button data-print="${o.id}">🖨 Chek chiqarish</button>${o.status === "open" ? `<button data-zfree="${o.id}">Stolni bo'shatish</button>` : ""}</div></div>`;
+      function zalTab() {
+        const open = ZO.filter((o) => o.status === "open"),
+          pend = W.filter((w) => w.status === "pending").length;
+        const chips = [
+          ["orders", `Buyurtmalar (${open.length})`],
+          ["tables", `Stollar (${T.length})`],
+          [
+            "waiters",
+            `Ofitsantlar (${W.length})${pend ? ` · ${pend} ta yangi` : ""}`,
+          ],
+        ]
+          .map(
+            ([k, l]) =>
+              `<button data-zs="${k}" class="${zsub === k ? "on" : ""}">${l}</button>`,
+          )
+          .join("");
+        let body = "";
+        if (zsub === "orders")
+          body =
+            ZO.map(zOrder).join("") ||
+            '<p class="muted">Zal buyurtmasi yo\'q.</p>';
+        else if (zsub === "tables") {
+          const zs = [...new Set(T.map((t) => t.zal))];
+          body =
+            `<div class="chips"><button id="addt" class="on">+ Stol qo'shish</button></div>` +
+            (zs
+              .map(
+                (z) =>
+                  `<div class="card order"><h3>${esc(z)}</h3><div class="tg">` +
+                  T.filter((t) => t.zal === z)
+                    .map(
+                      (t) =>
+                        `<span class="tchip${t.busy ? " busy" : ""}">${t.number}${t.busy ? "" : `<button data-tdel="${t.id}" aria-label="Stolni o'chirish">×</button>`}</span>`,
+                    )
+                    .join("") +
+                  `</div></div>`,
+              )
+              .join("") || '<p class="muted">Stol yo\'q.</p>');
+        } else
+          body =
+            `<div class="card"><div class="tablewrap"><table><tr><th>Ofitsant</th><th>Telefon</th><th>Login</th><th>Ro'yxatdan o'tgan</th><th>Holat</th><th></th></tr>` +
+            (W.map(
+              (w) =>
+                `<tr><td><b>${esc(w.name)}</b></td><td>${esc(w.phone)}</td><td>${esc(w.login)}</td><td>${ago(w.created)}</td><td><span class="tag ${w.status === "approved" ? "s-done" : w.status === "pending" ? "s-new" : "s-cancelled"}">${WST[w.status]}</span></td><td><div class="act">${w.status !== "approved" ? `<button data-wst="${w.id}:approved">Tasdiqlash</button>` : `<button data-wst="${w.id}:blocked">Bloklash</button>`}<button data-wpw="${w.id}">Yangi parol</button><button data-wdel="${w.id}">O'chirish</button></div></td></tr>`,
+            ).join("") ||
+              '<tr><td colspan="6" class="muted">Ofitsant yo\'q.</td></tr>') +
+            `</table></div></div><p class="muted">Ofitsantlar shu manzil orqali kiradi: <b>${esc(location.origin)}/waiter</b></p>`;
+        $("#zal").innerHTML = `<div class="chips">${chips}</div>` + body;
+      }
+      function printOrder(o) {
+        const rows = o.items
+          .map(
+            (i) =>
+              `<tr><td>${esc(i.name)}</td><td class="r">${i.qty}×</td><td class="r">${(i.price * i.qty).toLocaleString("ru-RU")}</td></tr>`,
+          )
+          .join("");
+        const html = `<!doctype html><meta charset="utf-8"><style>@page{size:80mm auto;margin:3mm}body{width:72mm;font:13px/1.35 monospace;margin:0}h1{font-size:18px;text-align:center;margin:0 0 4px}.c{text-align:center}table{width:100%;border-collapse:collapse}td{padding:2px 0;vertical-align:top}.r{text-align:right;white-space:nowrap;padding-left:6px}hr{border:0;border-top:1px dashed #000;margin:6px 0}.t{font-size:16px;font-weight:bold}</style><h1>O'RINBOY HOTDOG</h1><div class="c">${esc(o.zal)} · STOL ${o.number}</div><div class="c">${esc(o.created)}</div><hr><table>${rows}</table><hr><table><tr class="t"><td>JAMI</td><td class="r">${o.total.toLocaleString("ru-RU")} so'm</td></tr></table>${o.comment ? `<hr><div>Izoh: ${esc(o.comment)}</div>` : ""}<hr><div>Ofitsant: ${esc(o.waiter || "")}</div><div class="c">Buyurtma #${o.id}</div>`;
+        const f = document.createElement("iframe");
+        f.style.cssText =
+          "position:fixed;right:0;bottom:0;width:0;height:0;border:0";
+        document.body.appendChild(f);
+        const d = f.contentWindow.document;
+        d.open();
+        d.write(html);
+        d.close();
+        setTimeout(() => {
+          f.contentWindow.focus();
+          f.contentWindow.print();
+          setTimeout(() => f.remove(), 2000);
+        }, 300);
+      }
+      $("#zal").onclick = async (e) => {
+        const t = e.target.closest("button");
+        if (!t) return;
+        try {
+          if (t.dataset.zs) {
+            zsub = t.dataset.zs;
+            return zalTab();
+          }
+          if (t.dataset.print) {
+            const o = ZO.find((x) => x.id == t.dataset.print);
+            printOrder(o);
+            await post(`/api/zal/orders/${o.id}/printed`, "POST");
+            return load();
+          }
+          if (t.dataset.zfree) {
+            if (confirm("Stol bo'shatilsinmi?")) {
+              await post(`/api/zal/orders/${t.dataset.zfree}/close`, "POST");
+              toast("Stol bo'shatildi");
+              load();
+            }
+            return;
+          }
+          if (t.id === "addt") return $("#dlgt").showModal();
+          if (t.dataset.tdel) {
+            if (confirm("Stolni o'chirasizmi?")) {
+              await post("/api/tables/" + t.dataset.tdel, "DELETE");
+              load();
+            }
+            return;
+          }
+          if (t.dataset.wst) {
+            const [id, st] = t.dataset.wst.split(":");
+            await post(`/api/waiters/${id}/status`, "POST", { status: st });
+            toast("Saqlandi");
+            return load();
+          }
+          if (t.dataset.wpw) {
+            if (
+              !confirm("Yangi parol yaratilsinmi? Eski parol ishlamay qoladi.")
+            )
+              return;
+            const r = await post(
+              `/api/waiters/${t.dataset.wpw}/password`,
+              "POST",
+            );
+            prompt(
+              "Yangi parol (ofitsantga bering, qayta ko'rsatilmaydi):",
+              r.password,
+            );
+            return;
+          }
+          if (t.dataset.wdel) {
+            if (confirm("Ofitsantni o'chirasizmi?")) {
+              await post("/api/waiters/" + t.dataset.wdel, "DELETE");
+              toast("O'chirildi");
+              load();
+            }
+            return;
+          }
+        } catch (err) {
+          toast("Xatolik yuz berdi");
+        }
+      };
+      $("#tf").onsubmit = async (e) => {
+        e.preventDefault();
+        try {
+          await post("/api/tables", "POST", {
+            zal: $("#tz").value.trim(),
+            from: +$("#ta").value,
+            to: +$("#tb").value,
+          });
+          $("#dlgt").close();
+          toast("Stollar qo'shildi");
+          load();
+        } catch (err) {
+          toast("Saqlab bo'lmadi");
+        }
+      };
+      $("#cancelt").onclick = () => $("#dlgt").close();
+      async function resizeImg(file) {
+        const bmp = await createImageBitmap(file),
+          k = Math.min(1, 720 / Math.max(bmp.width, bmp.height));
+        const c = document.createElement("canvas");
+        c.width = Math.round(bmp.width * k);
+        c.height = Math.round(bmp.height * k);
+        c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
+        return c.toDataURL("image/jpeg", 0.82);
+      }
+      $("#imgf").onchange = async (e) => {
+        const f = e.target.files[0];
+        e.target.value = "";
+        if (!f || !imgTarget) return;
+        try {
+          await post(`/api/menu/${imgTarget}/image`, "POST", {
+            image: await resizeImg(f),
+          });
+          toast("Rasm saqlandi");
+          load();
+        } catch (err) {
+          toast("Rasmni saqlab bo'lmadi");
+        }
+      };
       function menuTab() {
         const cats = [...new Set(M.map((m) => m.cat))];
         $("#menu").innerHTML =
@@ -864,7 +1122,7 @@
                 M.filter((m) => m.cat === c)
                   .map(
                     (m) =>
-                      `<div class="mrow${m.sold ? " sold" : ""}"><div class="mn"><b>${esc(m.name)}</b>${m.desc ? ` <span class="muted">${esc(m.desc)}</span>` : ""}</div><div class="mp">${fmt(m.price)}</div><div class="act"><button data-edit="${m.id}">Tahrirlash</button><button data-sold="${m.id}">${m.sold ? "Qayta bor" : "Tugadi"}</button><button data-del="${m.id}">O'chirish</button></div></div>`,
+                      `<div class="mrow${m.sold ? " sold" : ""}"><div class="mn">${m.img ? `<img class="th" alt="" src="/img/${m.id}?v=${m.img}">` : ""}<b>${esc(m.name)}</b>${m.desc ? ` <span class="muted">${esc(m.desc)}</span>` : ""}</div><div class="mp">${fmt(m.price)}</div><div class="act"><button data-img="${m.id}">📷 Rasm</button>${m.img ? `<button data-imgdel="${m.id}">Rasmni o'chirish</button>` : ""}<button data-edit="${m.id}">Tahrirlash</button><button data-sold="${m.id}">${m.sold ? "Qayta bor" : "Tugadi"}</button><button data-del="${m.id}">O'chirish</button></div></div>`,
                   )
                   .join("") +
                 `</div>`,
@@ -888,6 +1146,15 @@
         if (!t) return;
         try {
           if (t.id === "addm") return openM();
+          if (t.dataset.img) {
+            imgTarget = t.dataset.img;
+            return $("#imgf").click();
+          }
+          if (t.dataset.imgdel) {
+            await post("/api/menu/" + t.dataset.imgdel + "/image", "DELETE");
+            toast("Rasm o'chirildi");
+            return load();
+          }
           if (t.dataset.edit)
             return openM(M.find((m) => m.id === t.dataset.edit));
           if (t.dataset.del) {
@@ -943,7 +1210,7 @@
       };
       $("#cancelm").onclick = () => $("#dlg").close();
       load();
-      setInterval(load, 30000);
+      setInterval(load, 15000);
     </script>
   </body>
 </html>

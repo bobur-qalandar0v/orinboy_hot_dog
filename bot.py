@@ -14,6 +14,7 @@ from datetime import datetime
 from urllib.parse import urlencode
 
 import admin
+import zal
 from aiogram import Bot, Dispatcher, F
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
@@ -51,6 +52,7 @@ if db.execute("PRAGMA user_version").fetchone()[0] < 1:
     db.execute("PRAGMA user_version = 1")
 admin.init_menu(db)
 admin.init_zones(db)
+zal.init_zal(db)
 db.commit()
 
 
@@ -418,7 +420,7 @@ async def on_pay_decision(callback: CallbackQuery):
 
 
 async def main():
-    print("Bot ishga tushdi: v8 (navbat, qabul qildim, hudud qidiruvi)")
+    print("Bot ishga tushdi: v9 (zal: ofitsantlar sayti)")
     await admin.run(db, bot, kb_for)
     await dp.start_polling(bot)
 
