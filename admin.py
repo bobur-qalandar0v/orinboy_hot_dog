@@ -12,7 +12,7 @@ import hmac
 import json
 import os
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiohttp import web
@@ -69,6 +69,14 @@ DEFAULT_ZONES = [
     ("z3", "Uzoq hududlar", 20000, 0),
     ("z0", "Olib ketaman", 0, 1),
 ]
+
+
+TZ = timezone(timedelta(hours=5))  # O'zbekiston: UTC+5, yozgi vaqt yo'q
+
+
+def tashkent_now():
+    """Server qaysi vaqt mintaqasida bo'lmasin (Render UTC), Toshkent vaqtini qaytaradi."""
+    return datetime.now(TZ).replace(tzinfo=None)
 
 
 def init_zones(db):
@@ -174,7 +182,7 @@ def make_app(db, bot, password, kb_for):
 
     async def stats(request):
         orders = rows("SELECT created, items, total, pay FROM orders WHERE status != 'cancelled'")
-        now = datetime.now()
+        now = tashkent_now()
         today = now.strftime("%Y-%m-%d")
         daily = {(now - timedelta(days=i)).strftime("%Y-%m-%d"): [0, 0] for i in range(13, -1, -1)}
         hours, prods, pay = [0] * 24, {}, {"cash": 0, "card": 0}

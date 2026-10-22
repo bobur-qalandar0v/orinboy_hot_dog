@@ -44,6 +44,11 @@ for _sql in ("ALTER TABLE orders ADD COLUMN rating INTEGER", "ALTER TABLE orders
         db.execute(_sql)
     except sqlite3.OperationalError:
         pass
+if db.execute("PRAGMA user_version").fetchone()[0] < 1:
+    if os.environ.get("RENDER"):
+        # Render serveri UTC vaqtida ishlagan: eski yozuvlarni Toshkent vaqtiga (+5 soat) o'tkazamiz
+        db.execute("UPDATE orders SET created = strftime('%Y-%m-%d %H:%M:%S', created, '+5 hours')")
+    db.execute("PRAGMA user_version = 1")
 admin.init_menu(db)
 admin.init_zones(db)
 db.commit()
@@ -237,7 +242,7 @@ async def on_order(message: Message):
         cur = db.execute(
             "INSERT INTO orders(uid, created, items, total, pay, address, comment, zone, zone_id, delivery) "
             "VALUES (?,?,?,?,?,?,?,?,?,?)",
-            (uid, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), items_json, total, pay, address, comment,
+            (uid, admin.tashkent_now().strftime("%Y-%m-%d %H:%M:%S"), items_json, total, pay, address, comment,
              zone["name"], zone["id"], delivery))
         oid, title = cur.lastrowid, "🆕 Yangi buyurtma"
     if by_card:
