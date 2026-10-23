@@ -620,6 +620,16 @@
         vertical-align: middle;
         margin-right: 8px;
       }
+      .rnd2 {
+        border-top: 2px dashed var(--line);
+        padding-top: 10px;
+        margin-top: 10px;
+      }
+      .tchip small {
+        color: var(--mute);
+        font-weight: 700;
+        font-size: 12px;
+      }
       .tg {
         display: flex;
         flex-wrap: wrap;
@@ -674,14 +684,14 @@
             <i>📊</i><span>Statistika</span>
           </button>
           <button data-t="orders">
-            <i>🧾</i><span>Yetkaziladigan buyurtmalar</span
+            <i>🧾</i><span>Buyurtmalar</span
             ><span class="badge" id="newb" hidden>0</span>
           </button>
           <button data-t="users"><i>👥</i><span>Mijozlar</span></button>
           <button data-t="menu"><i>🍔</i><span>Menyu</span></button>
-          <button data-t="zones"><i>🛵</i><span>Yetkazish hududlari</span></button>
+          <button data-t="zones"><i>🛵</i><span>Yetkazish</span></button>
           <button data-t="zal">
-            <i>🍽️</i><span>Zaldagi buyurtmalar</span
+            <i>🍽️</i><span>Zal</span
             ><span class="badge" id="zalb" hidden>0</span>
           </button>
         </nav>
@@ -824,6 +834,15 @@
           >Stol raqami: dan<input id="ta" type="number" min="1" required
         /></label>
         <label>gacha<input id="tb" type="number" min="1" required /></label>
+        <label
+          >Har bir stolda o'rindiqlar soni<input
+            id="ts"
+            type="number"
+            min="1"
+            max="50"
+            value="4"
+            required
+        /></label>
         <p class="muted" style="margin: 8px 0 0">
           Bitta stol uchun ikkala joyga bir xil son yozing.
         </p>
@@ -1226,6 +1245,53 @@
         pending: "Kutilmoqda",
         blocked: "Bloklangan",
       };
+      function zGroups() {
+        const by = {};
+        ZO.filter((o) => o.status === "open")
+          .sort((a, b) => a.id - b.id)
+          .forEach((o) => (by[o.table_id] = by[o.table_id] || []).push(o));
+        return Object.values(by).sort(
+          (a, b) =>
+            a[0].zal.localeCompare(b[0].zal) || a[0].number - b[0].number,
+        );
+      }
+      const zTable = (g) => {
+        const f = g[0],
+          tot = g.reduce((s, o) => s + o.total, 0);
+        return (
+          `<div class="card order"><div class="oh"><b>${esc(f.zal)} · Stol ${f.number}</b><span class="tag s-new">Band</span><span class="tag">👥 ${f.table_guests || 0}/${f.seats || "?"}</span><b style="margin-left:auto">Stol hisobi: ${fmt(tot)}</b></div>` +
+          g
+            .map(
+              (o, i) =>
+                `<div class="rnd2"><div class="oh"><b>${i + 1}-buyurtma</b><span class="tag ${o.printed ? "" : "s-cooking"}">${o.printed ? "🖨 Chiqarilgan" : "Chek chiqarilmagan"}</span><span class="muted">${ago(o.created)} · ${esc(o.waiter || "—")} ${esc(o.waiter_phone || "")}${o.guests ? ` · +${o.guests} mehmon` : ""}</span><b style="margin-left:auto">${fmt(o.total)}</b></div>${o.comment ? `<div class="muted">💬 ${esc(o.comment)}</div>` : ""}<ul class="oi">${o.items.map((i) => `<li>${esc(i.name)} × ${i.qty} <span class="muted">— ${fmt(i.price * i.qty)}</span></li>`).join("")}</ul><div class="act"><button data-print="${o.id}">🖨 Chek</button></div></div>`,
+            )
+            .join("") +
+          `<div class="act" style="margin-top:10px"><button data-bill="${f.table_id}">🖨 Umumiy hisob</button><button data-tfree="${f.table_id}">Hisobni yopish: stolni bo'shatish</button></div></div>`
+        );
+      };
+      function printBill(g) {
+        const m = {};
+        g.forEach((o) =>
+          o.items.forEach((i) => {
+            (m[i.id] = m[i.id] || {
+              name: i.name,
+              qty: 0,
+              price: i.price,
+            }).qty += i.qty;
+          }),
+        );
+        printOrder({
+          zal: g[0].zal,
+          number: g[0].number,
+          created: g[g.length - 1].created,
+          items: Object.values(m),
+          total: g.reduce((s, o) => s + o.total, 0),
+          comment: "",
+          waiter: [...new Set(g.map((o) => o.waiter))].join(", "),
+          id: 0,
+          bill: true,
+        });
+      }
       const zOrder = (
         o,
       ) => `<div class="card order"><div class="oh"><b>${esc(o.zal)} · Stol ${o.number}</b><span class="tag ${o.status === "open" ? "s-new" : "s-completed"}">${o.status === "open" ? "Band" : "Yopilgan"}</span><span class="tag ${o.printed ? "" : "s-cooking"}">${o.printed ? "🖨 Chiqarilgan" : "Chek chiqarilmagan"}</span><span class="muted">${ago(o.created)}</span><b style="margin-left:auto">${fmt(o.total)}</b></div>
@@ -1236,7 +1302,7 @@
         const open = ZO.filter((o) => o.status === "open"),
           pend = W.filter((w) => w.status === "pending").length;
         const chips = [
-          ["orders", `Buyurtmalar (${open.length})`],
+          ["orders", `Buyurtmalar (${zGroups().length})`],
           ["tables", `Stollar (${T.length})`],
           [
             "waiters",
@@ -1251,8 +1317,10 @@
         let body = "";
         if (zsub === "orders")
           body =
-            ZO.map(zOrder).join("") ||
-            '<p class="muted">Zal buyurtmasi yo\'q.</p>';
+            zGroups().map(zTable).join("") +
+              ZO.filter((o) => o.status !== "open")
+                .map(zOrder)
+                .join("") || '<p class="muted">Zal buyurtmasi yo\'q.</p>';
         else if (zsub === "tables") {
           const zs = [...new Set(T.map((t) => t.zal))];
           body =
@@ -1264,7 +1332,7 @@
                   T.filter((t) => t.zal === z)
                     .map(
                       (t) =>
-                        `<span class="tchip${t.busy ? " busy" : ""}">${t.number}${t.busy ? "" : `<button data-tdel="${t.id}" aria-label="Stolni o'chirish">×</button>`}</span>`,
+                        `<span class="tchip${t.busy ? " busy" : ""}">${t.number}<small>${t.seats || 4} o'rin</small><button data-tseats="${t.id}" title="O'rindiqlar sonini o'zgartirish" aria-label="O'rindiqlar sonini o'zgartirish">✎</button>${t.busy ? "" : `<button data-tdel="${t.id}" aria-label="Stolni o'chirish">×</button>`}</span>`,
                     )
                     .join("") +
                   `</div></div>`,
@@ -1288,7 +1356,7 @@
               `<tr><td>${esc(i.name)}</td><td class="r">${i.qty}×</td><td class="r">${(i.price * i.qty).toLocaleString("ru-RU")}</td></tr>`,
           )
           .join("");
-        const html = `<!doctype html><meta charset="utf-8"><style>@page{size:80mm auto;margin:3mm}body{width:72mm;font:13px/1.35 monospace;margin:0}h1{font-size:18px;text-align:center;margin:0 0 4px}.c{text-align:center}table{width:100%;border-collapse:collapse}td{padding:2px 0;vertical-align:top}.r{text-align:right;white-space:nowrap;padding-left:6px}hr{border:0;border-top:1px dashed #000;margin:6px 0}.t{font-size:16px;font-weight:bold}</style><h1>O'RINBOY HOTDOG</h1><div class="c">${esc(o.zal)} · STOL ${o.number}</div><div class="c">${esc(o.created)}</div><hr><table>${rows}</table><hr><table><tr class="t"><td>JAMI</td><td class="r">${o.total.toLocaleString("ru-RU")} so'm</td></tr></table>${o.comment ? `<hr><div>Izoh: ${esc(o.comment)}</div>` : ""}<hr><div>Ofitsant: ${esc(o.waiter || "")}</div><div class="c">Buyurtma #${o.id}</div>`;
+        const html = `<!doctype html><meta charset="utf-8"><style>@page{size:80mm auto;margin:3mm}body{width:72mm;font:13px/1.35 monospace;margin:0}h1{font-size:18px;text-align:center;margin:0 0 4px}.c{text-align:center}table{width:100%;border-collapse:collapse}td{padding:2px 0;vertical-align:top}.r{text-align:right;white-space:nowrap;padding-left:6px}hr{border:0;border-top:1px dashed #000;margin:6px 0}.t{font-size:16px;font-weight:bold}</style><h1>O'RINBOY HOTDOG</h1><div class="c">${esc(o.zal)} · STOL ${o.number}</div><div class="c">${esc(o.created)}</div><hr><table>${rows}</table><hr><table><tr class="t"><td>JAMI</td><td class="r">${o.total.toLocaleString("ru-RU")} so'm</td></tr></table>${o.comment ? `<hr><div>Izoh: ${esc(o.comment)}</div>` : ""}<hr><div>Ofitsant: ${esc(o.waiter || "")}</div><div class="c">${o.bill ? "UMUMIY HISOB" : "Buyurtma #" + o.id}</div>`;
         const f = document.createElement("iframe");
         f.style.cssText =
           "position:fixed;right:0;bottom:0;width:0;height:0;border:0";
@@ -1324,6 +1392,31 @@
               load();
             }
             return;
+          }
+          if (t.dataset.bill) {
+            printBill(zGroups().find((g) => g[0].table_id == t.dataset.bill));
+            return;
+          }
+          if (t.dataset.tfree) {
+            if (confirm("Stol hisobi yopilib, stol bo'shatilsinmi?")) {
+              await post(`/api/tables/${t.dataset.tfree}/free`, "POST");
+              toast("Stol bo'shatildi");
+              load();
+            }
+            return;
+          }
+          if (t.dataset.tseats) {
+            const tb = T.find((x) => x.id == t.dataset.tseats),
+              v = prompt("Bu stolda nechta o'rindiq bor?", tb.seats || 4);
+            if (v === null) return;
+            const n = parseInt(v, 10);
+            if (!(n >= 1 && n <= 50)) {
+              toast("1 dan 50 gacha son kiriting");
+              return;
+            }
+            await post("/api/tables/" + tb.id, "PUT", { seats: n });
+            toast("Saqlandi");
+            return load();
           }
           if (t.id === "addt") return $("#dlgt").showModal();
           if (t.dataset.tdel) {
@@ -1380,6 +1473,7 @@
             zal: $("#tz").value.trim(),
             from: +$("#ta").value,
             to: +$("#tb").value,
+            seats: +$("#ts").value,
           });
           $("#dlgt").close();
           toast("Stollar qo'shildi");

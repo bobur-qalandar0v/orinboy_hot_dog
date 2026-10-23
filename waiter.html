@@ -235,6 +235,35 @@
       .tb.free small {
         color: var(--green);
       }
+      .tb.part {
+        background: color-mix(in srgb, var(--mustard) 25%, var(--card));
+        border-color: var(--mustard);
+      }
+      .tb.part small {
+        color: #9a6b00;
+      }
+      .gst {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin: 10px 0;
+      }
+      .gst b {
+        min-width: 24px;
+        text-align: center;
+        font-size: 20px;
+      }
+      .muted2 {
+        color: var(--mute);
+        font-size: 13px;
+        font-weight: 700;
+      }
+      h4.rnd {
+        margin: 14px 0 4px;
+        font-size: 15px;
+        color: var(--red);
+      }
       .tb.busy {
         background: color-mix(in srgb, var(--red) 18%, var(--card));
         border-color: var(--red);
@@ -531,7 +560,8 @@
         <div id="zals"></div>
         <p class="legend">
           Bo'sh stolni bosing va buyurtma oling.<br />Band stolni bossangiz,
-          uning buyurtmasi ko'rinadi.
+          uning hisobi ko'rinadi va yangi mehmonlar uchun yana buyurtma qo'sha
+          olasiz.
         </p>
       </section>
 
@@ -554,6 +584,16 @@
     <dialog id="dc">
       <h3>Buyurtmani tekshiring</h3>
       <div id="dcl"></div>
+      <div class="gst">
+        <span id="glbl">Nechta mehmon o'tirdi?</span>
+        <div class="st">
+          <button type="button" id="gm" aria-label="Kamaytirish">−</button
+          ><b id="gv">1</b
+          ><button type="button" class="plus" id="gp" aria-label="Ko'paytirish">
+            +
+          </button>
+        </div>
+      </div>
       <label for="note">Izoh (ixtiyoriy)</label
       ><textarea
         id="note"
@@ -568,8 +608,9 @@
     <dialog id="ds">
       <h3 id="dst"></h3>
       <div id="dsb"></div>
+      <button class="btn" id="addmore">➕ Buyurtma qo'shish</button>
       <button class="btn red" id="free">
-        Mijozlar yeb bo'ldi: stolni bo'shatish</button
+        Hisobni yopish: stolni bo'shatish</button
       ><button class="btn ghost" id="sclose" type="button">Yopish</button>
     </dialog>
 
@@ -602,7 +643,8 @@
         cart = {},
         cur = null,
         poll = null,
-        detail = null;
+        detail = null,
+        newGuests = 1;
 
       async function api(u, o = {}) {
         o.headers = {
@@ -725,10 +767,19 @@
               (z) =>
                 `<h2 class="zal">${esc(z)}</h2><div class="grid">` +
                 TB.filter((t) => t.zal === z)
-                  .map(
-                    (t, i) =>
-                      `<button class="tb ${t.busy ? "busy" : "free"}" data-id="${t.id}" style="animation-delay:${i * 40}ms"><span class="n">${t.number}</span><small>${t.busy ? "Band · " + fmt(t.order.total) : "Bo'sh"}</small></button>`,
-                  )
+                  .map((t, i) => {
+                    const cls = !t.busy
+                      ? "free"
+                      : t.guests >= t.seats
+                        ? "busy"
+                        : "part";
+                    const txt = !t.busy
+                      ? `Bo'sh · ${t.seats} o'rin`
+                      : t.guests >= t.seats
+                        ? `To'liq · ${fmt(t.total)}`
+                        : `${t.guests}/${t.seats} · ${fmt(t.total)}`;
+                    return `<button class="tb ${cls}" data-id="${t.id}" style="animation-delay:${i * 40}ms"><span class="n">${t.number}</span><small>${txt}</small></button>`;
+                  })
                   .join("") +
                 `</div>`,
             )
@@ -739,32 +790,61 @@
         const b = e.target.closest(".tb");
         if (!b) return;
         const t = TB.find((x) => x.id == b.dataset.id);
-        if (t.busy) return showBusy(t);
+        if (t.busy) return showTable(t);
         openMenu(t);
       };
-      function showBusy(t) {
+      function showTable(t) {
         detail = t;
-        const o = t.order;
-        $("#dst").textContent = `${t.zal} · Stol ${t.number}: band`;
+        $("#dst").textContent = `${t.zal} · Stol ${t.number}`;
         $("#dsb").innerHTML =
-          `<p class="sub" style="text-align:left">Ofitsant: <b>${esc(o.waiter || "—")}</b> · ${esc(o.created.slice(11, 16))}</p>` +
-          o.items
+          `<div class="gst"><span>Hozir o'tirganlar</span><div class="st"><button data-g="-1" aria-label="Kamaytirish">−</button><b id="gn">${t.guests}</b><button class="plus" data-g="1" aria-label="Ko'paytirish">+</button></div><span class="muted2">/ ${t.seats} o'rin</span></div>` +
+          t.orders
             .map(
-              (i) =>
-                `<div class="row2"><span>${esc(i.name)} × ${i.qty}</span><b>${fmt(i.price * i.qty)}</b></div>`,
+              (o, i) =>
+                `<h4 class="rnd">${i + 1}-buyurtma · ${esc(o.waiter || "—")} · ${esc(o.created.slice(11, 16))}${o.guests ? ` · +${o.guests} mehmon` : ""}</h4>` +
+                o.items
+                  .map(
+                    (it) =>
+                      `<div class="row2"><span>${esc(it.name)} × ${it.qty}</span><b>${fmt(it.price * it.qty)}</b></div>`,
+                  )
+                  .join("") +
+                (o.comment
+                  ? `<p class="sub" style="text-align:left;margin:4px 0">💬 ${esc(o.comment)}</p>`
+                  : ""),
             )
             .join("") +
-          `<div class="row2" style="font-size:18px"><b>Jami</b><b>${fmt(o.total)}</b></div>` +
-          (o.comment
-            ? `<p class="sub" style="text-align:left">💬 ${esc(o.comment)}</p>`
-            : "");
+          `<div class="row2" style="font-size:19px"><b>Stol hisobi</b><b>${fmt(t.total)}</b></div>`;
         $("#ds").showModal();
       }
+      $("#dsb").onclick = async (e) => {
+        const b = e.target.closest("[data-g]");
+        if (!b || !detail) return;
+        const g = Math.max(
+          0,
+          Math.min(99, detail.guests + Number(b.dataset.g)),
+        );
+        if (g === detail.guests) return;
+        try {
+          await api(`/api/w/tables/${detail.id}/guests`, {
+            method: "POST",
+            body: JSON.stringify({ guests: g }),
+          });
+          detail.guests = g;
+          $("#gn").textContent = g;
+          loadTables();
+        } catch (x) {
+          toast(x.message);
+        }
+      };
       $("#sclose").onclick = () => $("#ds").close();
+      $("#addmore").onclick = () => {
+        $("#ds").close();
+        openMenu(detail);
+      };
       $("#free").onclick = async () => {
         if (
           !confirm(
-            `Stol ${detail.number} bo'shatilsinmi? Mijozlar ketganini tasdiqlang.`,
+            `Stol ${detail.number} hisobi yopilsinmi? Hamma mijozlar ketganini tasdiqlang.`,
           )
         )
           return;
@@ -905,10 +985,23 @@
             )
             .join("") +
           `<div class="row2" style="font-size:19px"><b>Jami</b><b>${fmt(total())}</b></div>`;
+        newGuests = cur.busy ? 0 : 1;
+        $("#gv").textContent = newGuests;
+        $("#glbl").textContent = cur.busy
+          ? "Yangi mehmonlar soni (qo'shimcha buyurtmada 0 bo'lishi mumkin)"
+          : "Nechta mehmon o'tirdi?";
         $("#cmsg").textContent = "";
         $("#dc").showModal();
       };
       $("#cclose").onclick = () => $("#dc").close();
+      $("#gm").onclick = () => {
+        newGuests = Math.max(0, newGuests - 1);
+        $("#gv").textContent = newGuests;
+      };
+      $("#gp").onclick = () => {
+        newGuests = Math.min(50, newGuests + 1);
+        $("#gv").textContent = newGuests;
+      };
       $("#send").onclick = async () => {
         const btn = $("#send");
         btn.disabled = true;
@@ -917,6 +1010,7 @@
             method: "POST",
             body: JSON.stringify({
               table_id: cur.id,
+              guests: newGuests,
               comment: $("#note").value.trim(),
               items: Object.entries(cart).map(([id, qty]) => ({ id, qty })),
             }),

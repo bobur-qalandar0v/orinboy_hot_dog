@@ -32,10 +32,14 @@ def init_zal(db):
         number INTEGER, waiter_id INTEGER, created TEXT, items TEXT, total INTEGER, comment TEXT,
         status TEXT DEFAULT 'open', printed INTEGER DEFAULT 0, closed TEXT);
     """)
-    try:
-        db.execute("ALTER TABLE waiters ADD COLUMN pw_plain TEXT")  # admin ko'ra olishi uchun
-    except sqlite3.OperationalError:
-        pass
+    for sql in ("ALTER TABLE waiters ADD COLUMN pw_plain TEXT",
+                "ALTER TABLE zal_tables ADD COLUMN seats INTEGER DEFAULT 4",
+                "ALTER TABLE zal_tables ADD COLUMN guests INTEGER DEFAULT 0",
+                "ALTER TABLE zal_orders ADD COLUMN guests INTEGER DEFAULT 0"):
+        try:
+            db.execute(sql)
+        except sqlite3.OperationalError:
+            pass
     if not db.execute("SELECT 1 FROM zal_tables LIMIT 1").fetchone():
         db.executemany("INSERT INTO zal_tables(zal, number) VALUES (?,?)",
                        [("1-zal", n) for n in range(1, 6)] + [("2-zal", n) for n in range(6, 11)])
@@ -66,6 +70,13 @@ def add_routes(app, db, now, get_menu, guard):
         if not r or r[3] != "approved" or time.time() - r[4] > SESSION_SECONDS:
             raise web.HTTPUnauthorized()
         return {"id": r[0], "name": r[1], "phone": r[2]}
+
+    def close_table(tid):
+        """Stolning hamma ochiq buyurtmalarini yopadi (hisob yopildi) va o'tirganlar sonini nolga tushiradi."""
+        db.execute("UPDATE zal_orders SET status='closed', closed=? WHERE table_id=? AND status='open'",
+                   (now().strftime("%Y-%m-%d %H:%M:%S"), tid))
+        db.execute("UPDATE zal_tables SET guests=0 WHERE id=?", (tid,))
+        db.commit()
 
     # ------------------------- ofitsant tomoni -------------------------
     async def page(request):
@@ -120,16 +131,16 @@ def add_routes(app, db, now, get_menu, guard):
 
     async def w_tables(request):
         w = waiter_from(request)
-        tables = rows("SELECT id, zal, number FROM zal_tables ORDER BY zal, number")
-        opened = {o["table_id"]: o for o in rows(
-            "SELECT o.id, o.table_id, o.total, o.created, o.items, o.comment, w.name AS waiter "
-            "FROM zal_orders o LEFT JOIN waiters w ON w.id = o.waiter_id WHERE o.status='open'")}
+        tables = rows("SELECT id, zal, number, seats, guests FROM zal_tables ORDER BY zal, number")
+        by = {}
+        for o in rows("SELECT o.id, o.table_id, o.total, o.created, o.items, o.comment, o.guests, w.name AS waiter "
+                      "FROM zal_orders o LEFT JOIN waiters w ON w.id = o.waiter_id WHERE o.status='open' ORDER BY o.id"):
+            o["items"] = json.loads(o["items"])
+            by.setdefault(o["table_id"], []).append(o)
         for t in tables:
-            o = opened.get(t["id"])
-            t["busy"] = bool(o)
-            if o:
-                o["items"] = json.loads(o["items"])
-            t["order"] = o
+            t["orders"] = by.get(t["id"], [])
+            t["busy"] = bool(t["orders"])
+            t["total"] = sum(o["total"] for o in t["orders"])
         return web.json_response({"waiter": w, "tables": tables})
 
     async def w_order(request):
@@ -138,8 +149,6 @@ def add_routes(app, db, now, get_menu, guard):
         t = db.execute("SELECT id, zal, number FROM zal_tables WHERE id=?", (d.get("table_id"),)).fetchone()
         if not t:
             return err("Stol topilmadi.", 404)
-        if db.execute("SELECT 1 FROM zal_orders WHERE table_id=? AND status='open'", (t[0],)).fetchone():
-            return err("Bu stol band: mijozlar hali ovqatlanmoqda.", 409)
         menu = {m["id"]: m for m in get_menu(db)}
         items = []
         for it in d.get("items", []):
@@ -156,18 +165,31 @@ def add_routes(app, db, now, get_menu, guard):
         if not items:
             return err("Buyurtma bo'sh.")
         total = sum(i["price"] * i["qty"] for i in items)
+        try:
+            guests = max(0, min(50, int(d.get("guests", 0) or 0)))
+        except (TypeError, ValueError):
+            guests = 0
         cur = db.execute(
-            "INSERT INTO zal_orders(table_id, zal, number, waiter_id, created, items, total, comment) "
-            "VALUES (?,?,?,?,?,?,?,?)",
+            "INSERT INTO zal_orders(table_id, zal, number, waiter_id, created, items, total, comment, guests) "
+            "VALUES (?,?,?,?,?,?,?,?,?)",
             (t[0], t[1], t[2], w["id"], now().strftime("%Y-%m-%d %H:%M:%S"),
-             json.dumps(items, ensure_ascii=False), total, str(d.get("comment", ""))[:200]))
+             json.dumps(items, ensure_ascii=False), total, str(d.get("comment", ""))[:200], guests))
+        db.execute("UPDATE zal_tables SET guests = MIN(99, guests + ?) WHERE id=?", (guests, t[0]))
         db.commit()
         return web.json_response({"ok": True, "id": cur.lastrowid, "total": total})
 
     async def w_free(request):
         waiter_from(request)
-        db.execute("UPDATE zal_orders SET status='closed', closed=? WHERE table_id=? AND status='open'",
-                   (now().strftime("%Y-%m-%d %H:%M:%S"), int(request.match_info["id"])))
+        close_table(int(request.match_info["id"]))
+        return web.json_response({"ok": True})
+
+    async def w_guests(request):
+        waiter_from(request)
+        try:
+            g = max(0, min(99, int((await request.json()).get("guests", 0))))
+        except (TypeError, ValueError):
+            return err("Son noto'g'ri.")
+        db.execute("UPDATE zal_tables SET guests=? WHERE id=?", (g, int(request.match_info["id"])))
         db.commit()
         return web.json_response({"ok": True})
 
@@ -219,7 +241,8 @@ def add_routes(app, db, now, get_menu, guard):
 
     async def a_tables(request):
         return web.json_response(rows(
-            "SELECT t.id, t.zal, t.number, EXISTS(SELECT 1 FROM zal_orders o WHERE o.table_id=t.id AND o.status='open') "
+            "SELECT t.id, t.zal, t.number, t.seats, t.guests, "
+            "EXISTS(SELECT 1 FROM zal_orders o WHERE o.table_id=t.id AND o.status='open') "
             "AS busy FROM zal_tables t ORDER BY t.zal, t.number"))
 
     async def a_table_add(request):
@@ -232,9 +255,28 @@ def add_routes(app, db, now, get_menu, guard):
             raise web.HTTPBadRequest(text="Raqamlar kerak")
         if not zal or a < 1 or b < a or b - a > 100:
             raise web.HTTPBadRequest(text="Zal nomi va to'g'ri oraliq kerak")
+        try:
+            seats = max(1, min(50, int(d.get("seats") or 4)))
+        except (TypeError, ValueError):
+            seats = 4
         for n in range(a, b + 1):
-            db.execute("INSERT OR IGNORE INTO zal_tables(zal, number) VALUES (?,?)", (zal, n))
+            db.execute("INSERT OR IGNORE INTO zal_tables(zal, number, seats) VALUES (?,?,?)", (zal, n, seats))
         db.commit()
+        return web.json_response({"ok": True})
+
+    async def a_table_update(request):
+        guard(request)
+        try:
+            seats = max(1, min(50, int((await request.json()).get("seats"))))
+        except (TypeError, ValueError):
+            raise web.HTTPBadRequest(text="O'rindiqlar soni kerak")
+        db.execute("UPDATE zal_tables SET seats=? WHERE id=?", (seats, int(request.match_info["id"])))
+        db.commit()
+        return web.json_response({"ok": True})
+
+    async def a_table_free(request):
+        guard(request)
+        close_table(int(request.match_info["id"]))
         return web.json_response({"ok": True})
 
     async def a_table_delete(request):
@@ -248,9 +290,10 @@ def add_routes(app, db, now, get_menu, guard):
 
     async def a_zal_orders(request):
         data = rows(
-            "SELECT o.id, o.zal, o.number, o.created, o.items, o.total, o.comment, o.status, o.printed, "
-            "w.name AS waiter, w.phone AS waiter_phone FROM zal_orders o LEFT JOIN waiters w ON w.id = o.waiter_id "
-            "ORDER BY (o.status='open') DESC, o.id DESC LIMIT 100")
+            "SELECT o.id, o.table_id, o.zal, o.number, o.created, o.items, o.total, o.comment, o.status, o.printed, o.guests, "
+            "t.seats, t.guests AS table_guests, w.name AS waiter, w.phone AS waiter_phone FROM zal_orders o "
+            "LEFT JOIN waiters w ON w.id = o.waiter_id LEFT JOIN zal_tables t ON t.id = o.table_id "
+            "ORDER BY (o.status='open') DESC, o.id DESC LIMIT 150")
         for o in data:
             o["items"] = json.loads(o["items"])
         return web.json_response(data)
@@ -297,6 +340,7 @@ def add_routes(app, db, now, get_menu, guard):
         web.get("/api/w/tables", w_tables),
         web.post("/api/w/orders", w_order),
         web.post("/api/w/tables/{id}/free", w_free),
+        web.post("/api/w/tables/{id}/guests", w_guests),
         web.get("/img/{id}", img),
         web.get("/api/waiters", a_waiters),
         web.post("/api/waiters/{id}/status", a_waiter_status),
@@ -305,6 +349,8 @@ def add_routes(app, db, now, get_menu, guard):
         web.get("/api/tables", a_tables),
         web.post("/api/tables", a_table_add),
         web.delete("/api/tables/{id}", a_table_delete),
+        web.put("/api/tables/{id}", a_table_update),
+        web.post("/api/tables/{id}/free", a_table_free),
         web.get("/api/zal/orders", a_zal_orders),
         web.post("/api/zal/orders/{id}/printed", a_zal_printed),
         web.post("/api/zal/orders/{id}/close", a_zal_close),
