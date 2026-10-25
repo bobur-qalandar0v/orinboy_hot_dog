@@ -131,6 +131,7 @@ def add_routes(app, db, now, get_menu, guard):
 
     async def w_tables(request):
         w = waiter_from(request)
+        db.execute("UPDATE zal_tables SET guests=seats WHERE guests>seats")  # eski xato ma'lumotni to'g'rilaydi
         tables = rows("SELECT id, zal, number, seats, guests FROM zal_tables ORDER BY zal, number")
         by = {}
         for o in rows("SELECT o.id, o.table_id, o.total, o.created, o.items, o.comment, o.guests, w.name AS waiter "
@@ -146,7 +147,7 @@ def add_routes(app, db, now, get_menu, guard):
     async def w_order(request):
         w = waiter_from(request)
         d = await request.json()
-        t = db.execute("SELECT id, zal, number FROM zal_tables WHERE id=?", (d.get("table_id"),)).fetchone()
+        t = db.execute("SELECT id, zal, number, seats, guests FROM zal_tables WHERE id=?", (d.get("table_id"),)).fetchone()
         if not t:
             return err("Stol topilmadi.", 404)
         menu = {m["id"]: m for m in get_menu(db)}
@@ -169,6 +170,10 @@ def add_routes(app, db, now, get_menu, guard):
             guests = max(0, min(50, int(d.get("guests", 0) or 0)))
         except (TypeError, ValueError):
             guests = 0
+        free = max(0, (t[3] or 4) - (t[4] or 0))
+        if guests > free:
+            return err(f"Stolda faqat {free} ta bo'sh o'rin bor." if free else
+                       "Stol to'liq: yangi mehmon qo'shib bo'lmaydi. Faqat qo'shimcha taom buyurtma qilish mumkin.", 409)
         cur = db.execute(
             "INSERT INTO zal_orders(table_id, zal, number, waiter_id, created, items, total, comment, guests) "
             "VALUES (?,?,?,?,?,?,?,?,?)",
@@ -189,7 +194,10 @@ def add_routes(app, db, now, get_menu, guard):
             g = max(0, min(99, int((await request.json()).get("guests", 0))))
         except (TypeError, ValueError):
             return err("Son noto'g'ri.")
-        db.execute("UPDATE zal_tables SET guests=? WHERE id=?", (g, int(request.match_info["id"])))
+        tid = int(request.match_info["id"])
+        row = db.execute("SELECT seats FROM zal_tables WHERE id=?", (tid,)).fetchone()
+        g = min(g, (row[0] if row else 4) or 4)
+        db.execute("UPDATE zal_tables SET guests=? WHERE id=?", (g, tid))
         db.commit()
         return web.json_response({"ok": True})
 

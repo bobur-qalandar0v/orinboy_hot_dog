@@ -1263,7 +1263,7 @@
           g
             .map(
               (o, i) =>
-                `<div class="rnd2"><div class="oh"><b>${i + 1}-buyurtma</b><span class="tag ${o.printed ? "" : "s-cooking"}">${o.printed ? "🖨 Chiqarilgan" : "Chek chiqarilmagan"}</span><span class="muted">${ago(o.created)} · ${esc(o.waiter || "—")} ${esc(o.waiter_phone || "")}${o.guests ? ` · +${o.guests} mehmon` : ""}</span><b style="margin-left:auto">${fmt(o.total)}</b></div>${o.comment ? `<div class="muted">💬 ${esc(o.comment)}</div>` : ""}<ul class="oi">${o.items.map((i) => `<li>${esc(i.name)} × ${i.qty} <span class="muted">— ${fmt(i.price * i.qty)}</span></li>`).join("")}</ul><div class="act"><button data-print="${o.id}">🖨 Chek</button></div></div>`,
+                `<div class="rnd2"><div class="oh"><b>${i + 1}-buyurtma</b><span class="tag ${o.printed ? "" : "s-cooking"}">${o.printed ? "🖨 Chiqarilgan" : "Chek chiqarilmagan"}</span><span class="muted">${ago(o.created)} · ${esc(o.waiter || "—")} ${esc(o.waiter_phone || "")}${o.guests ? ` · ${o.guests} ta yangi mehmon` : " · qo'shimcha taom"}</span><b style="margin-left:auto">${fmt(o.total)}</b></div>${o.comment ? `<div class="muted">💬 ${esc(o.comment)}</div>` : ""}<ul class="oi">${o.items.map((i) => `<li>${esc(i.name)} × ${i.qty} <span class="muted">— ${fmt(i.price * i.qty)}</span></li>`).join("")}</ul><div class="act"><button data-print="${o.id}">🖨 Chek</button></div></div>`,
             )
             .join("") +
           `<div class="act" style="margin-top:10px"><button data-bill="${f.table_id}">🖨 Umumiy hisob</button><button data-tfree="${f.table_id}">Hisobni yopish: stolni bo'shatish</button></div></div>`
