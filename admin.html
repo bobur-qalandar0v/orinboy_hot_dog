@@ -694,6 +694,10 @@
             <i>🍽️</i><span>Zal</span
             ><span class="badge" id="zalb" hidden>0</span>
           </button>
+          <button data-t="couriers">
+            <i>🚗</i><span>Dastavchiklar</span
+            ><span class="badge" id="cb" hidden>0</span>
+          </button>
         </nav>
         <div class="sidefoot">
           <div class="theme" id="theme" role="group" aria-label="Mavzu">
@@ -741,6 +745,7 @@
           <section id="menu" hidden></section>
           <section id="zones" hidden></section>
           <section id="zal" hidden></section>
+          <section id="couriers" hidden></section>
         </main>
       </div>
     </div>
@@ -902,6 +907,7 @@
         W = [],
         T = [],
         ZO = [],
+        C = [],
         zsub = "orders",
         imgTarget = null,
         filter = "active",
@@ -1046,7 +1052,7 @@
             (
               o,
             ) => `<div class="card order"><div class="oh"><b>#${o.id}</b><span class="tag s-${o.status}">${ST[o.status]}</span><span class="tag">${o.pay === "card" ? "💳 Karta" : "💵 Naqd"}</span>${o.rating ? `<span class="tag">⭐ ${o.rating}</span>` : ""}<span class="muted">${ago(o.created)}</span><b style="margin-left:auto">${fmt(o.total)}</b></div>
-   <div><b>${esc(o.name || "Noma'lum")}</b> · ${esc(o.phone || "")}<br><span class="muted">📍 ${esc(o.address)}</span>${o.zone ? `<br><span class="muted">🛵 ${esc(o.zone)}${o.delivery ? " · " + fmt(o.delivery) : ""}</span>` : ""}${o.comment ? `<br><span class="muted">💬 ${esc(o.comment)}</span>` : ""}</div>
+   <div><b>${esc(o.name || "Noma'lum")}</b> · ${esc(o.phone || "")}<br><span class="muted">📍 ${esc(o.address)}</span>${o.zone ? `<br><span class="muted">🛵 ${esc(o.zone)}${o.delivery ? " · " + fmt(o.delivery) : ""}</span>` : ""}${o.courier ? `<br><span class="muted">🚗 Dastavchik: <b>${esc(o.courier)}</b> · ${esc(o.courier_phone)} · ${esc(o.car)}</span>` : ""}${o.comment ? `<br><span class="muted">💬 ${esc(o.comment)}</span>` : ""}</div>
    <ul class="oi">${o.items.map((i) => `<li>${esc(i.name)} × ${i.qty}</li>`).join("")}</ul>
    <div class="act">${(NEXT[o.status] || []).map((s) => `<button data-id="${o.id}" data-s="${s}">${s === "completed" ? "Yakunlash" : ST[s]}</button>`).join("") || '<span class="muted">Yakunlangan</span>'}</div></div>`,
           ).join("") || '<p class="muted">Buyurtma yo\'q.</p>');
@@ -1055,7 +1061,7 @@
       async function load() {
         if (!authed) return;
         try {
-          [S, U, O, M, Z, W, T, ZO] = await Promise.all([
+          [S, U, O, M, Z, W, T, ZO, C] = await Promise.all([
             api("/api/stats"),
             api("/api/users"),
             api("/api/orders"),
@@ -1064,6 +1070,7 @@
             api("/api/waiters"),
             api("/api/tables"),
             api("/api/zal/orders"),
+            api("/api/couriers"),
           ]);
         } catch (e) {
           if (e.message !== "login") toast("Ma'lumot olinmadi");
@@ -1075,6 +1082,10 @@
         const zb = $("#zalb");
         zb.hidden = !S.zal_new;
         zb.textContent = S.zal_new;
+        const cp = C.filter((c) => c.status === "pending").length,
+          cbd = $("#cb");
+        cbd.hidden = !cp;
+        cbd.textContent = cp;
         const nn = S.new + S.zal_new;
         document.title = (nn ? `(${nn}) ` : "") + "O'rinboy Admin";
         if (tab === "dash") dash();
@@ -1083,6 +1094,7 @@
         else if (tab === "zones") {
           if (document.activeElement.id !== "zq") zonesTab();
         } else if (tab === "zal") zalTab();
+        else if (tab === "couriers") couriersTab();
         else if (document.activeElement.id !== "qs") users();
       }
       $("#nav").onclick = (e) => {
@@ -1094,7 +1106,7 @@
         [...$("#nav").children].forEach((x) =>
           x.classList.toggle("on", x === b),
         );
-        ["dash", "orders", "users", "menu", "zones", "zal"].forEach(
+        ["dash", "orders", "users", "menu", "zones", "zal", "couriers"].forEach(
           (t) => ($("#" + t).hidden = t !== tab),
         );
         load();
@@ -1504,6 +1516,65 @@
           load();
         } catch (err) {
           toast("Rasmni saqlab bo'lmadi");
+        }
+      };
+      const cpwShown = new Set();
+      const cpwCell = (c) =>
+        c.password
+          ? `<span class="pw">${cpwShown.has(c.id) ? esc(c.password) : "••••••••"}</span> <button class="eye" data-ceye="${c.id}" aria-label="Parolni ko'rsatish yoki yashirish">${cpwShown.has(c.id) ? "🙈" : "👁"}</button>`
+          : '<span class="muted">—</span>';
+      function couriersTab() {
+        $("#couriers").innerHTML =
+          `<div class="card"><div class="tablewrap"><table><tr><th>Dastavchik</th><th>Telefon</th><th>Mashina</th><th>Login</th><th>Parol</th><th>Ro'yxatdan o'tgan</th><th>Yetkazgan</th><th>Holat</th><th></th></tr>` +
+          (C.map(
+            (c) =>
+              `<tr><td><b>${esc(c.name)}</b></td><td>${esc(c.phone)}</td><td>${esc(c.car_model)}<br><b>${esc(c.car_number)}</b></td><td>${esc(c.login)}</td><td>${cpwCell(c)}</td><td>${ago(c.created)}</td><td><b>${c.delivered}</b> ta</td><td><span class="tag ${c.status === "approved" ? "s-done" : c.status === "pending" ? "s-new" : "s-cancelled"}">${WST[c.status]}</span></td><td><div class="act">${c.status !== "approved" ? `<button data-cst="${c.id}:approved">Tasdiqlash</button>` : `<button data-cst="${c.id}:blocked">Bloklash</button>`}<button data-cpw="${c.id}">Parolni o'zgartirish</button><button data-cdel="${c.id}">O'chirish</button></div></td></tr>`,
+          ).join("") ||
+            '<tr><td colspan="9" class="muted">Dastavchik yo\'q.</td></tr>') +
+          `</table></div></div><p class="muted">Dastavchiklar shu manzil orqali kiradi: <b>${esc(location.origin)}/courier</b></p>`;
+      }
+      $("#couriers").onclick = async (e) => {
+        const t = e.target.closest("button");
+        if (!t) return;
+        try {
+          if (t.dataset.ceye) {
+            const id = +t.dataset.ceye;
+            cpwShown.has(id) ? cpwShown.delete(id) : cpwShown.add(id);
+            return couriersTab();
+          }
+          if (t.dataset.cst) {
+            const [id, st] = t.dataset.cst.split(":");
+            await post(`/api/couriers/${id}/status`, "POST", { status: st });
+            toast("Saqlandi");
+            return load();
+          }
+          if (t.dataset.cpw) {
+            const v = prompt(
+              "Yangi parolni yozing (kamida 6 ta belgi).\nBo'sh qoldirsangiz, tasodifiy parol yaratiladi:",
+              "",
+            );
+            if (v === null) return;
+            if (v.trim() && v.trim().length < 6) {
+              toast("Parol kamida 6 ta belgi bo'lsin");
+              return;
+            }
+            await post(`/api/couriers/${t.dataset.cpw}/password`, "POST", {
+              password: v.trim(),
+            });
+            cpwShown.add(+t.dataset.cpw);
+            toast("Parol o'zgartirildi");
+            return load();
+          }
+          if (t.dataset.cdel) {
+            if (confirm("Dastavchini o'chirasizmi?")) {
+              await post("/api/couriers/" + t.dataset.cdel, "DELETE");
+              toast("O'chirildi");
+              load();
+            }
+            return;
+          }
+        } catch (err) {
+          toast("Xatolik yuz berdi");
         }
       };
       function menuTab() {

@@ -17,6 +17,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+import courier
 import zal
 from aiohttp import web
 
@@ -176,8 +177,8 @@ def make_app(db, bot, password, kb_for):
 
     @web.middleware
     async def auth(request, handler):
-        if (request.method == "GET" and request.path in ("/api/menu", "/api/zones")) or request.path == "/waiter" \
-                or request.path.startswith(("/api/w/", "/img/")) \
+        if (request.method == "GET" and request.path in ("/api/menu", "/api/zones")) or request.path in ("/waiter", "/courier") \
+                or request.path.startswith(("/api/w/", "/api/c/", "/img/")) \
                 or request.path in ("/", "/api/admin/login", "/api/admin/logout"):
             return await handler(request)  # ochiq yo'llar (maxfiy ma'lumot yo'q)
         if not valid_session(request):
@@ -265,28 +266,35 @@ def make_app(db, bot, password, kb_for):
     async def orders(request):
         data = rows(
             "SELECT o.id, o.created, o.items, o.total, o.pay, o.address, o.comment, o.status, o.rating, o.zone, o.delivery, "
-            "u.name, u.phone FROM orders o LEFT JOIN users u ON u.id = o.uid ORDER BY o.id DESC LIMIT 200")
+            "u.name, u.phone, c.name AS courier, c.phone AS courier_phone, "
+            "TRIM(COALESCE(c.car_model,'') || ' ' || COALESCE(c.car_number,'')) AS car "
+            "FROM orders o LEFT JOIN users u ON u.id = o.uid LEFT JOIN couriers c ON c.id = o.courier_id "
+            "ORDER BY o.id DESC LIMIT 200")
         for o in data:
             o["items"] = json.loads(o["items"])
         return web.json_response(data)
 
-    async def set_status(request):
-        guard(request)
-        oid = int(request.match_info["id"])
-        status = (await request.json()).get("status")
+    async def change(oid, status):
+        """Buyurtma holatini o'zgartiradi, mijozga xabar yuboradi (admin ham, dastavchik ham shuni ishlatadi)."""
         row = db.execute("SELECT uid, status FROM orders WHERE id=?", (oid,)).fetchone()
         if not row:
-            raise web.HTTPNotFound()
+            raise ValueError("Buyurtma topilmadi")
         if status not in FLOW.get(row[1], []):
-            raise web.HTTPConflict(text="Bu holatga o'tib bo'lmaydi")
+            raise ValueError("Bu holatga o'tib bo'lmaydi")
         uid = row[0]
         db.execute("UPDATE orders SET status=? WHERE id=?", (status, oid))
         if status in ("done", "completed", "cancelled"):
             db.execute("DELETE FROM pending WHERE uid=?", (uid,))
         db.commit()
+        extra = ""
+        if status == "delivering":
+            c = db.execute("SELECT c.name, c.phone, c.car_model, c.car_number FROM orders o "
+                           "JOIN couriers c ON c.id = o.courier_id WHERE o.id=?", (oid,)).fetchone()
+            if c:
+                extra = f"\nDastavchik: {c[0]}, {c[1]}\nMashina: {c[2]} {c[3]}"
         notified = False
         try:
-            await bot.send_message(uid, f"Buyurtma #{oid}: {STATUS_MSG[status]}", reply_markup=kb_for(uid))
+            await bot.send_message(uid, f"Buyurtma #{oid}: {STATUS_MSG[status]}{extra}", reply_markup=kb_for(uid))
             notified = True
             if status == "done":
                 kb = InlineKeyboardMarkup(inline_keyboard=[[
@@ -298,6 +306,18 @@ def make_app(db, bot, password, kb_for):
         except Exception:
             pass
         await notify_queue(db, bot)
+        return notified
+
+    async def set_status(request):
+        guard(request)
+        oid = int(request.match_info["id"])
+        status = (await request.json()).get("status")
+        try:
+            notified = await change(oid, status)
+        except ValueError as e:
+            if "topilmadi" in str(e):
+                raise web.HTTPNotFound()
+            raise web.HTTPConflict(text=str(e))
         return web.json_response({"ok": True, "notified": notified})
 
     # ---- Menyu ----
@@ -422,6 +442,7 @@ def make_app(db, bot, password, kb_for):
         web.delete("/api/zones/{id}", zone_delete),
     ])
     zal.add_routes(app, db, tashkent_now, get_menu, guard)
+    courier.add_routes(app, db, tashkent_now, change, guard)
     return app
 
 
