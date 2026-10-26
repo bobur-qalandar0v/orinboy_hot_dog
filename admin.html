@@ -1363,27 +1363,44 @@
             `</table></div></div><p class="muted">Ofitsantlar shu manzil orqali kiradi: <b>${esc(location.origin)}/waiter</b></p>`;
         $("#zal").innerHTML = `<div class="chips">${chips}</div>` + body;
       }
-      function printOrder(o) {
+      const money = (n) => Number(n).toLocaleString("ru-RU");
+      function receiptHtml(o) {
         const rows = o.items
           .map(
             (i) =>
-              `<tr><td>${esc(i.name)}</td><td class="r">${i.qty}×</td><td class="r">${(i.price * i.qty).toLocaleString("ru-RU")}</td></tr>`,
+              `<tr><td colspan="2" class="nm">${esc(i.name)}</td></tr><tr><td class="q">${money(i.price)} × ${i.qty}</td><td class="r">${money(i.price * i.qty)}</td></tr>`,
           )
           .join("");
-        const html = `<!doctype html><meta charset="utf-8"><style>@page{size:80mm auto;margin:3mm}body{width:72mm;font:13px/1.35 monospace;margin:0}h1{font-size:18px;text-align:center;margin:0 0 4px}.c{text-align:center}table{width:100%;border-collapse:collapse}td{padding:2px 0;vertical-align:top}.r{text-align:right;white-space:nowrap;padding-left:6px}hr{border:0;border-top:1px dashed #000;margin:6px 0}.t{font-size:16px;font-weight:bold}</style><h1>O'RINBOY HOTDOG</h1><div class="c">${esc(o.zal)} · STOL ${o.number}</div><div class="c">${esc(o.created)}</div><hr><table>${rows}</table><hr><table><tr class="t"><td>JAMI</td><td class="r">${o.total.toLocaleString("ru-RU")} so'm</td></tr></table>${o.comment ? `<hr><div>Izoh: ${esc(o.comment)}</div>` : ""}<hr><div>Ofitsant: ${esc(o.waiter || "")}</div><div class="c">${o.bill ? "UMUMIY HISOB" : "Buyurtma #" + o.id}</div>`;
-        const f = document.createElement("iframe");
-        f.style.cssText =
-          "position:fixed;right:0;bottom:0;width:0;height:0;border:0";
-        document.body.appendChild(f);
-        const d = f.contentWindow.document;
-        d.open();
-        d.write(html);
-        d.close();
-        setTimeout(() => {
-          f.contentWindow.focus();
-          f.contentWindow.print();
-          setTimeout(() => f.remove(), 2000);
-        }, 300);
+        return `<!doctype html><meta charset="utf-8"><style>@page{size:80mm auto;margin:3mm}body{width:72mm;font:13px/1.35 monospace;margin:0}h1{font-size:18px;text-align:center;margin:0 0 4px}.c{text-align:center}table{width:100%;border-collapse:collapse}td{padding:1px 0;vertical-align:top}.nm{font-weight:bold;padding-top:5px}.q{padding-bottom:2px}.r{text-align:right;white-space:nowrap;padding-left:6px}hr{border:0;border-top:1px dashed #000;margin:6px 0}.t{font-size:16px;font-weight:bold}</style><h1>O'RINBOY HOTDOG</h1><div class="c">${esc(o.zal)} · STOL ${o.number}</div><div class="c">${esc(o.created)}</div><hr><table>${rows}</table><hr><table><tr class="t"><td>JAMI</td><td class="r">${money(o.total)} so'm</td></tr></table>${o.comment ? `<hr><div>Izoh: ${esc(o.comment)}</div>` : ""}<hr><div>Ofitsant: ${esc(o.waiter || "")}</div><div class="c">${o.bill ? "UMUMIY HISOB" : "Buyurtma #" + o.id}</div>`;
+      }
+      // Chop etish oynasi yopilgach hal bo'ladigan va'da qaytaradi (chop etildimi yoki bekor qilindimi, brauzer aytmaydi)
+      function printOrder(o) {
+        return new Promise((res) => {
+          const f = document.createElement("iframe");
+          f.style.cssText =
+            "position:fixed;right:0;bottom:0;width:0;height:0;border:0";
+          document.body.appendChild(f);
+          const win = f.contentWindow,
+            d = win.document;
+          d.open();
+          d.write(receiptHtml(o));
+          d.close();
+          let done = false;
+          const fin = () => {
+            if (done) return;
+            done = true;
+            setTimeout(() => {
+              f.remove();
+              res();
+            }, 300);
+          };
+          win.onafterprint = fin;
+          setTimeout(() => {
+            win.focus();
+            win.print();
+          }, 300);
+          setTimeout(fin, 5 * 60 * 1000);
+        });
       }
       $("#zal").onclick = async (e) => {
         const t = e.target.closest("button");
@@ -1395,8 +1412,15 @@
           }
           if (t.dataset.print) {
             const o = ZO.find((x) => x.id == t.dataset.print);
-            printOrder(o);
-            await post(`/api/zal/orders/${o.id}/printed`, "POST");
+            await printOrder(o);
+            if (
+              confirm(
+                "Chek printerdan chiqdimi?\n\nOK: «Chiqarilgan» deb belgilanadi.\nBekor: belgilanmaydi (chop etmagan bo'lsangiz).",
+              )
+            ) {
+              await post(`/api/zal/orders/${o.id}/printed`, "POST");
+              toast("Chiqarilgan deb belgilandi");
+            }
             return load();
           }
           if (t.dataset.zfree) {
