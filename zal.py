@@ -207,6 +207,39 @@ def add_routes(app, db, now, get_menu, guard):
             raise web.HTTPNotFound()
         return web.Response(body=r[1], content_type=r[0], headers={"Cache-Control": "public, max-age=86400"})
 
+    async def w_me(request):
+        w = waiter_from(request)
+        return web.json_response(rows(
+            "SELECT name, phone, login, created, status, "
+            "(SELECT COUNT(*) FROM zal_orders o WHERE o.waiter_id = waiters.id) AS orders FROM waiters WHERE id=?",
+            (w["id"],))[0])
+
+    async def w_me_update(request):
+        w = waiter_from(request)
+        digits = re.sub(r"\D", "", str((await request.json()).get("phone", "")))
+        if len(digits) == 9:
+            digits = "998" + digits
+        if len(digits) != 12 or not digits.startswith("998"):
+            return err("Telefon raqami noto'g'ri. Masalan: +998 90 123 45 67")
+        db.execute("UPDATE waiters SET phone=? WHERE id=?", ("+" + digits, w["id"]))
+        db.commit()
+        return web.json_response({"ok": True})
+
+    async def w_password(request):
+        w = waiter_from(request)
+        d = await request.json()
+        old, new = str(d.get("old", "")), str(d.get("new", ""))
+        salt, h = db.execute("SELECT salt, pwhash FROM waiters WHERE id=?", (w["id"],)).fetchone()
+        if not hmac.compare_digest(hash_pw(old, salt)[1], h):
+            return err("Joriy parol noto'g'ri.", 403)
+        if len(new) < 6:
+            return err("Yangi parol kamida 6 ta belgidan iborat bo'lsin.")
+        salt, h = hash_pw(new)
+        db.execute("UPDATE waiters SET salt=?, pwhash=?, pw_plain=? WHERE id=?", (salt, h, new, w["id"]))
+        db.execute("DELETE FROM sessions WHERE waiter_id=? AND token != ?", (w["id"], request.headers["Authorization"][7:]))
+        db.commit()
+        return web.json_response({"ok": True})
+
     # ------------------------- admin tomoni -------------------------
     async def a_waiters(request):
         return web.json_response(rows("SELECT id, name, phone, login, pw_plain AS password, status, created FROM waiters ORDER BY id DESC"))
@@ -349,6 +382,9 @@ def add_routes(app, db, now, get_menu, guard):
         web.post("/api/w/orders", w_order),
         web.post("/api/w/tables/{id}/free", w_free),
         web.post("/api/w/tables/{id}/guests", w_guests),
+        web.get("/api/w/me", w_me),
+        web.post("/api/w/me", w_me_update),
+        web.post("/api/w/password", w_password),
         web.get("/img/{id}", img),
         web.get("/api/waiters", a_waiters),
         web.post("/api/waiters/{id}/status", a_waiter_status),

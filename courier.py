@@ -148,6 +148,48 @@ def add_routes(app, db, now, change_status, guard):
             return err(str(e), 409)
         return web.json_response({"ok": True})
 
+    async def c_me(request):
+        me = courier_from(request)
+        return web.json_response(rows(
+            "SELECT name, phone, login, car_model, car_number, created, status, "
+            "(SELECT COUNT(*) FROM orders o WHERE o.courier_id = couriers.id AND o.status IN ('done','completed')) "
+            "AS delivered FROM couriers WHERE id=?", (me["id"],))[0])
+
+    async def c_me_update(request):
+        me = courier_from(request)
+        d = await request.json()
+        digits = re.sub(r"\D", "", str(d.get("phone", "")))
+        if len(digits) == 9:
+            digits = "998" + digits
+        car_number = re.sub(r"\s+", " ", str(d.get("car_number", "")).strip().upper())[:15]
+        car_model = str(d.get("car_model", "")).strip()[:40]
+        if len(digits) != 12 or not digits.startswith("998"):
+            return err("Telefon raqami noto'g'ri. Masalan: +998 90 123 45 67")
+        if len(car_number) < 4:
+            return err("Mashina davlat raqamini yozing. Masalan: 01 A 123 BC")
+        if len(car_model) < 2:
+            return err("Mashina rusumini yozing. Masalan: Chevrolet Nexia")
+        db.execute("UPDATE couriers SET phone=?, car_number=?, car_model=? WHERE id=?",
+                   ("+" + digits, car_number, car_model, me["id"]))
+        db.commit()
+        return web.json_response({"ok": True})
+
+    async def c_password(request):
+        me = courier_from(request)
+        d = await request.json()
+        old, new = str(d.get("old", "")), str(d.get("new", ""))
+        salt, h = db.execute("SELECT salt, pwhash FROM couriers WHERE id=?", (me["id"],)).fetchone()
+        if not hmac.compare_digest(zal.hash_pw(old, salt)[1], h):
+            return err("Joriy parol noto'g'ri.", 403)
+        if len(new) < 6:
+            return err("Yangi parol kamida 6 ta belgidan iborat bo'lsin.")
+        salt, h = zal.hash_pw(new)
+        db.execute("UPDATE couriers SET salt=?, pwhash=?, pw_plain=? WHERE id=?", (salt, h, new, me["id"]))
+        db.execute("DELETE FROM courier_sessions WHERE courier_id=? AND token != ?",
+                   (me["id"], request.headers["Authorization"][7:]))
+        db.commit()
+        return web.json_response({"ok": True})
+
     # ------------------------- admin tomoni -------------------------
     async def a_couriers(request):
         return web.json_response(rows(
@@ -197,6 +239,9 @@ def add_routes(app, db, now, change_status, guard):
         web.post("/api/c/login", login),
         web.get("/api/c/orders", c_orders),
         web.post("/api/c/orders/{id}/status", c_status),
+        web.get("/api/c/me", c_me),
+        web.post("/api/c/me", c_me_update),
+        web.post("/api/c/password", c_password),
         web.get("/api/couriers", a_couriers),
         web.post("/api/couriers/{id}/status", a_status),
         web.post("/api/couriers/{id}/password", a_password),

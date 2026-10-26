@@ -32,7 +32,9 @@ input:focus-visible,button:focus-visible{outline:3px solid var(--mustard);outlin
 .top div{flex:1;line-height:1.2}.top small{opacity:.9;font-weight:600}
 .top button{background:var(--card);color:var(--ink);border:2px solid var(--ink);border-radius:10px;padding:6px 12px;font-weight:700;cursor:pointer}
 .chips{display:flex;gap:8px;margin:6px 0 12px}
-.chips button{flex:1;border:2px solid var(--ink);background:var(--card);border-radius:99px;padding:8px;font-weight:700;cursor:pointer}
+.chips button{flex:1;border:2px solid var(--ink);background:var(--card);border-radius:99px;padding:8px 4px;font-weight:700;font-size:14px;cursor:pointer}
+.kv{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:2px dashed var(--line)}
+.kv span{color:var(--mute)}
 .chips button.on{background:var(--mustard);color:#3a1c0d}
 .ord{margin-bottom:14px;animation:up .45s ease both}
 @keyframes up{from{transform:translateY(14px);opacity:0}}
@@ -79,7 +81,7 @@ ul{margin:8px 0;padding-left:20px}
 
   <section id="app" hidden>
     <div class="top"><div><b id="cname"></b><br><small id="ccar"></small></div><button id="logout">Chiqish</button></div>
-    <div class="chips"><button id="tAct" class="on">Faol</button><button id="tDone">Yetkazganlarim</button></div>
+    <div class="chips"><button id="tAct" class="on">Faol</button><button id="tDone">Yetkazganlarim</button><button id="tMe">Ma'lumotlarim</button></div>
     <div id="list"></div>
   </section>
 </main>
@@ -91,7 +93,7 @@ const fmt=n=>Number(n||0).toLocaleString("ru-RU").replace(/\u00a0/g," ")+" so'm"
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const ST={new:"Yangi",cooking:"Tayyorlanmoqda",delivering:"Yo'lda",done:"Yetkazildi",completed:"Mijoz qabul qildi"};
 let token="";try{token=localStorage.getItem("ct")||"";}catch(e){}
-let D={active:[],mine:[],courier:null},tab="act",poll=null,knownNew=null;
+let D={active:[],mine:[],courier:null},tab="act",poll=null,knownNew=null,ME=null;
 
 async function api(u,o={}){
   o.headers={"Content-Type":"application/json",...(token?{Authorization:"Bearer "+token}:{}),...(o.headers||{})};
@@ -145,11 +147,38 @@ function card(o,num){
 function render(){
   $("#tAct").classList.toggle("on",tab==="act");$("#tDone").classList.toggle("on",tab==="done");
   $("#tAct").textContent=`Faol (${D.active.length})`;
+  $("#tMe").classList.toggle("on",tab==="me");
+  if(tab==="me")return;
   $("#list").innerHTML=tab==="act"
     ?(D.active.map((o,i)=>card(o,i+1)).join("")||'<p class="empty">Hozircha yetkazib berish buyurtmasi yo\'q.<br>Yangisi kelsa, bu yerda chiqadi.</p>')
     :(D.mine.map(o=>card(o,0)).join("")||'<p class="empty">Hali yetkazilgan buyurtma yo\'q.</p>');
 }
 $("#tAct").onclick=()=>{tab="act";render();};$("#tDone").onclick=()=>{tab="done";render();};
+$("#tMe").onclick=async()=>{tab="me";render();$("#list").innerHTML='<p class="empty">Yuklanmoqda…</p>';try{ME=await api("/api/c/me");renderMe();}catch(e){toast(e.message);}};
+function renderMe(){
+  $("#list").innerHTML=`<div class="card ord"><h3 style="margin:0 0 6px">Mening ma'lumotlarim</h3>
+    <div class="kv"><span>Ism va familiya</span><b>${esc(ME.name)}</b></div>
+    <div class="kv"><span>Login</span><b>${esc(ME.login)}</b></div>
+    <div class="kv"><span>Ro'yxatdan o'tgan</span><b>${esc(ME.created.slice(0,16))}</b></div>
+    <div class="kv"><span>Yetkazgan buyurtmalar</span><b>${ME.delivered} ta</b></div>
+    <form id="fme"><label for="m1">Telefon raqami</label><input id="m1" type="tel" inputmode="tel" value="${esc(ME.phone)}" required>
+      <label for="m2">Mashina rusumi</label><input id="m2" value="${esc(ME.car_model)}" required>
+      <label for="m3">Mashina davlat raqami</label><input id="m3" value="${esc(ME.car_number)}" autocapitalize="characters" required>
+      <button class="btn" type="submit">Saqlash</button></form></div>
+    <div class="card ord"><h3 style="margin:0 0 6px">Parolni o'zgartirish</h3>
+    <form id="fpw"><label for="p1">Joriy parol</label><input id="p1" type="password" autocomplete="current-password" required>
+      <label for="p2">Yangi parol (kamida 6 ta belgi)</label><input id="p2" type="password" autocomplete="new-password" required>
+      <button class="btn" type="submit">Parolni o'zgartirish</button></form></div>`;
+}
+$("#list").addEventListener("submit",async e=>{
+  e.preventDefault();
+  try{
+    if(e.target.id==="fme"){await api("/api/c/me",{method:"POST",body:JSON.stringify({phone:$("#m1").value,car_model:$("#m2").value,car_number:$("#m3").value})});
+      toast("✅ Saqlandi");ME=await api("/api/c/me");renderMe();load();}
+    else if(e.target.id==="fpw"){await api("/api/c/password",{method:"POST",body:JSON.stringify({old:$("#p1").value,new:$("#p2").value})});
+      toast("✅ Parol o'zgartirildi");e.target.reset();}
+  }catch(x){toast(x.message);}
+});
 $("#list").onclick=async e=>{
   const b=e.target.closest("button[data-s]");if(!b)return;
   if(b.dataset.s==="done"&&!confirm("Buyurtma mijozga topshirildimi?"))return;
