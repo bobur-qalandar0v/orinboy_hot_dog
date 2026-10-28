@@ -83,6 +83,45 @@ def tashkent_now():
     return datetime.now(TZ).replace(tzinfo=None)
 
 
+DEFAULT_SHOP = {"open_time": "18:00", "close_time": "02:00", "mode": "auto", "until": "", "note": ""}
+
+
+def get_setting(db, key):
+    r = db.execute("SELECT value FROM settings WHERE key=?", (key,)).fetchone()
+    return r[0] if r else DEFAULT_SHOP.get(key, "")
+
+
+def set_setting(db, key, value):
+    db.execute("INSERT INTO settings(key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+               (key, value))
+    db.commit()
+
+
+def shop_status(db):
+    """Botdan buyurtma qabul qilish ochiqmi? (Toshkent vaqti; ish vaqti yarim tundan o'tishi mumkin: 18:00–02:00)."""
+    s = {k: get_setting(db, k) for k in DEFAULT_SHOP}
+    now = tashkent_now()
+    mode = s["mode"] if s["mode"] in ("auto", "open", "closed") else "auto"
+    if mode != "auto" and s["until"] and now.strftime("%Y-%m-%d %H:%M:%S") >= s["until"]:
+        mode = "auto"  # qo'lda boshqarish muddati tugadi: jadvalga qaytadi
+        set_setting(db, "mode", "auto")
+        set_setting(db, "until", "")
+        set_setting(db, "note", "")
+        s["until"], s["note"] = "", ""
+    hhmm, o, c = now.strftime("%H:%M"), s["open_time"], s["close_time"]
+    in_hours = True if o == c else (o <= hhmm < c if o < c else (hhmm >= o or hhmm < c))
+    is_open = True if mode == "open" else False if mode == "closed" else in_hours
+    return {"open": is_open, "mode": mode, "in_hours": in_hours, "open_time": o, "close_time": c,
+            "hours": f"{o}–{c}", "until": s["until"], "note": s["note"] if mode != "auto" else ""}
+
+
+def closed_message(st):
+    msg = f"⏰ Hozir buyurtma qabul qilinmaydi.\nIsh vaqti: {st['hours']}."
+    if st.get("note"):
+        msg += f"\n{st['note']}"
+    return msg
+
+
 def init_zones(db):
     db.execute("CREATE TABLE IF NOT EXISTS zones(id TEXT PRIMARY KEY, name TEXT, fee INTEGER, pickup INTEGER DEFAULT 0, pos INTEGER)")
     if not db.execute("SELECT 1 FROM zones LIMIT 1").fetchone():
@@ -101,6 +140,11 @@ def init_zones(db):
 def get_zones(db):
     cur = db.execute("SELECT id, name, fee, pickup FROM zones ORDER BY pos, rowid")
     return [{"id": r[0], "name": r[1], "fee": r[2], "pickup": bool(r[3])} for r in cur.fetchall()]
+
+
+def init_settings(db):
+    db.execute("CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT)")
+    db.commit()
 
 
 def init_menu(db):
@@ -177,7 +221,7 @@ def make_app(db, bot, password, kb_for):
 
     @web.middleware
     async def auth(request, handler):
-        if (request.method == "GET" and request.path in ("/api/menu", "/api/zones")) or request.path in ("/waiter", "/courier") \
+        if (request.method == "GET" and request.path in ("/api/menu", "/api/zones", "/api/status")) or request.path in ("/waiter", "/courier") \
                 or request.path.startswith(("/api/w/", "/api/c/", "/img/")) \
                 or request.path in ("/", "/api/admin/login", "/api/admin/logout"):
             return await handler(request)  # ochiq yo'llar (maxfiy ma'lumot yo'q)
@@ -422,6 +466,49 @@ def make_app(db, bot, password, kb_for):
             t.add_done_callback(tasks.discard)
         return web.json_response({"ok": True, "sent": sent})
 
+    async def status_public(request):
+        st = shop_status(db)
+        return web.json_response({"open": st["open"], "hours": st["hours"], "note": st["note"],
+                                  "message": "" if st["open"] else closed_message(st)},
+                                 headers={"Access-Control-Allow-Origin": "*", "Cache-Control": "no-store"})
+
+    async def shop_get(request):
+        return web.json_response({"settings": {k: get_setting(db, k) for k in DEFAULT_SHOP}, "status": shop_status(db)})
+
+    async def shop_set(request):
+        guard(request)
+        d = await request.json()
+        import re
+        if "open_time" in d or "close_time" in d:
+            o, c = str(d.get("open_time", "")), str(d.get("close_time", ""))
+            if not (re.fullmatch(r"\d\d:\d\d", o) and re.fullmatch(r"\d\d:\d\d", c)):
+                raise web.HTTPBadRequest(text="Vaqt noto'g'ri")
+            set_setting(db, "open_time", o)
+            set_setting(db, "close_time", c)
+        if "mode" in d:
+            if d["mode"] not in ("auto", "open", "closed"):
+                raise web.HTTPBadRequest(text="Rejim noto'g'ri")
+            until = str(d.get("until", "")).strip().replace("T", " ")
+            if until:
+                if not re.fullmatch(r"\d{4}-\d\d-\d\d \d\d:\d\d(:\d\d)?", until):
+                    raise web.HTTPBadRequest(text="Sana noto'g'ri")
+                until = until if len(until) == 19 else until + ":00"
+            set_setting(db, "mode", d["mode"])
+            set_setting(db, "until", "" if d["mode"] == "auto" else until)
+            set_setting(db, "note", str(d.get("note", "")).strip()[:300])
+        return web.json_response({"settings": {k: get_setting(db, k) for k in DEFAULT_SHOP}, "status": shop_status(db)})
+
+    async def broadcast_api(request):
+        guard(request)
+        text = str((await request.json()).get("text", "")).strip()[:1500]
+        if len(text) < 5:
+            raise web.HTTPBadRequest(text="Xabar juda qisqa")
+        count = db.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+        t = asyncio.create_task(broadcast(text))
+        tasks.add(t)
+        t.add_done_callback(tasks.discard)
+        return web.json_response({"ok": True, "sent": count})
+
     app = web.Application(middlewares=[auth], client_max_size=2 * 1024 * 1024)
     app.add_routes([
         web.get("/", index),
@@ -437,6 +524,10 @@ def make_app(db, bot, password, kb_for):
         web.delete("/api/menu/{id}", menu_delete),
         web.post("/api/menu/{id}/sold", menu_sold),
         web.get("/api/zones", zones_list),
+        web.get("/api/status", status_public),
+        web.get("/api/shop", shop_get),
+        web.post("/api/shop", shop_set),
+        web.post("/api/broadcast", broadcast_api),
         web.post("/api/zones", zone_create),
         web.put("/api/zones/{id}", zone_update),
         web.delete("/api/zones/{id}", zone_delete),

@@ -306,6 +306,16 @@ h1 {
   opacity: 0.35;
   cursor: default;
 }
+.closedbar {
+  background: var(--red);
+  color: #fff;
+  border: 2px solid var(--ink);
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-weight: 800;
+  margin: 8px 0;
+  white-space: pre-line;
+}
 .editbar {
   background: var(--mustard);
   color: #3a1c0d;

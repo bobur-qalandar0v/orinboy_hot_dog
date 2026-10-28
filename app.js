@@ -36,6 +36,9 @@ if (API) {
 // Yetkazib berish hududlari (xuddi shunday botdan olinadi; narxni baribir bot qayta hisoblaydi)
 let ZONES = [{ id: "z1", name: "Yaqin hududlar", fee: 10000, pickup: false }, { id: "z2", name: "O'rta masofa", fee: 15000, pickup: false }, { id: "z3", name: "Uzoq hududlar", fee: 20000, pickup: false }, { id: "z0", name: "Olib ketaman", fee: 0, pickup: true }];
 if (API) { try { const r = await fetch(API + "/api/zones", { cache: "no-store" }), z = await r.json(); if (r.ok && Array.isArray(z) && z.length) ZONES = z.map(x => ({ ...x, raw: x.name, name: esc0(x.name) })); } catch (e) { } }
+// Ish vaqti: do'kon yopiq bo'lsa buyurtma berib bo'lmaydi (bot baribir tekshiradi)
+let SHOP = { open: true, message: "" };
+if (API) { try { const r = await fetch(API + "/api/status", { cache: "no-store" }), s = await r.json(); if (r.ok) SHOP = s; } catch (e) { } }
 ZONES.forEach(z => { z.raw = z.raw ?? z.name; });
 let zone = ZONES.some(x => x.id === P.get("z")) ? P.get("z") : "";
 const $ = id => document.getElementById(id), fmt = n => n.toLocaleString("ru-RU").replace(/\u00a0/g, " ") + " so'm";
@@ -50,7 +53,7 @@ const cats = [...new Set(MENU.map(m => m.cat))];
 $("chips").innerHTML = cats.map((c, i) => `<button data-i="${i}">${c}</button>`).join("");
 $("list").innerHTML = cats.map((c, i) => `<section class="sec" id="c${i}"><h2 class="cat">${c}</h2>` + MENU.filter(m => m.cat === c).map(m =>
     `<div class="item${m.sold ? " sold" : ""}" id="i-${m.id}"><div class="t"><b>${m.name}</b>${m.desc ? `<small>${m.desc}</small>` : ""}<div class="price">${m.sold ? '<span class="soldtag">Tugadi</span>' : fmt(m.price)}</div></div>
- <div class="step"><button class="minus" data-id="${m.id}" data-d="-1" aria-label="Kamaytirish" hidden>−</button><span class="q" hidden>0</span><button class="plus" data-id="${m.id}" data-d="1" aria-label="${m.name} qo'shish"${m.sold ? " disabled" : ""}>+</button></div></div>`).join("") + `</section>`).join("");
+ <div class="step"><button class="minus" data-id="${m.id}" data-d="-1" aria-label="Kamaytirish" hidden>−</button><span class="q" hidden>0</span><button class="plus" data-id="${m.id}" data-d="1" aria-label="${m.name} qo'shish"${m.sold || !SHOP.open ? " disabled" : ""}>+</button></div></div>`).join("") + `</section>`).join("");
 
 function bar() {
     const c = count(), t = total();
@@ -134,6 +137,7 @@ $("go").onclick = () => {
 $("back").onclick = () => show("menu");
 $("again").onclick = () => { for (const k in cart) { delete cart[k]; upd(k); } show("menu"); };
 $("send").onclick = () => {
+    if (!SHOP.open) { $("err").textContent = SHOP.message || "Hozir buyurtma qabul qilinmaydi."; return; }
     const zn = ZONES.find(x => x.id === zone);
     if (!zn) { const t = $("zq").value.trim(); $("err").textContent = t ? `Bunday hudud yo'q: «${t}». Ro'yxatdan tanlang.` : "Yetkazib berish hududini tanlang."; if (G) G.fromTo("#zq", { x: -8 }, { x: 0, duration: .5, ease: "elastic.out(1,.3)" }); return; }
     const address = "";  // manzilni bot ro'yxatdan o'tishdagi ma'lumotdan oladi
@@ -181,6 +185,7 @@ if (G) {
     }), { threshold: .12 });
     document.querySelectorAll(".item,.cat").forEach(el => io.observe(el));
 }
+if (!SHOP.open) { $("closedbar").hidden = false; $("closedbar").textContent = SHOP.message || "⏰ Hozir buyurtma qabul qilinmaydi."; }
 // Tahrirlash rejimi: mavjud buyurtma savatga oldindan yuklanadi
 if (EDIT) {
     for (const part of (P.get("c") || "").split(",")) { const [id, n] = part.split(":"); if (MENU.some(m => m.id === id && !m.sold) && +n > 0) { cart[id] = +n; upd(id); } }

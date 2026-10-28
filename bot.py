@@ -51,6 +51,7 @@ if db.execute("PRAGMA user_version").fetchone()[0] < 1:
         # Render serveri UTC vaqtida ishlagan: eski yozuvlarni Toshkent vaqtiga (+5 soat) o'tkazamiz
         db.execute("UPDATE orders SET created = strftime('%Y-%m-%d %H:%M:%S', created, '+5 hours')")
     db.execute("PRAGMA user_version = 1")
+admin.init_settings(db)
 admin.init_menu(db)
 admin.init_zones(db)
 zal.init_zal(db)
@@ -123,7 +124,9 @@ async def start(message: Message, state: FSMContext):
     await state.clear()
     user = get_user(message.from_user.id)
     if user:
-        await message.answer(f"Salom, {user['name']}! Buyurtma berish uchun tugmani bosing.",
+        st = admin.shop_status(db)
+        extra = "" if st["open"] else "\n\n" + admin.closed_message(st)
+        await message.answer(f"Salom, {user['name']}! Buyurtma berish uchun tugmani bosing.{extra}",
                              reply_markup=kb_for(message.from_user.id))
     else:
         await message.answer("Salom! O'rinboy Hotdog botiga xush kelibsiz. "
@@ -194,6 +197,10 @@ async def on_order(message: Message):
     user = get_user(uid)
     if not user:
         await message.answer("Avval /start orqali ro'yxatdan o'ting.")
+        return
+    st = admin.shop_status(db)
+    if not st["open"]:
+        await message.answer(admin.closed_message(st), reply_markup=kb_for(uid))
         return
     order = json.loads(message.web_app_data.data)
 
@@ -422,7 +429,7 @@ async def on_pay_decision(callback: CallbackQuery):
 
 
 async def main():
-    print("Bot ishga tushdi: v10 (dastavchiklar sayti)")
+    print("Bot ishga tushdi: v11 (ish vaqti va xabar yuborish)")
     await admin.run(db, bot, kb_for)
     await dp.start_polling(bot)
 

@@ -1,1788 +1,3 @@
-<!-- <!doctype html>
-<html lang="uz">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>O'rinboy Admin</title>
-    <script>
-      try {
-        var t = localStorage.getItem("theme");
-        if (t === "light" || t === "dark")
-          document.documentElement.dataset.theme = t;
-      } catch (e) {}
-    </script>
-    <link
-      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700;800&display=swap"
-      rel="stylesheet"
-    />
-    <style>
-      :root {
-        --bg: #fff1c2;
-        --card: #fffdf6;
-        --ink: #3a1c0d;
-        --mute: #85685a;
-        --red: #d62f1f;
-        --mustard: #f2b705;
-        --green: #2f7d4f;
-        --blue: #2b6cb0;
-        --sh: #3a1c0d;
-        --line: #e3c97a;
-        color-scheme: light;
-      }
-      @media (prefers-color-scheme: dark) {
-        :root:not([data-theme="light"]) {
-          --bg: #1f130c;
-          --card: #34211a;
-          --ink: #fff1d6;
-          --mute: #c4a88e;
-          --sh: #0d0704;
-          --line: #5a3a2b;
-          color-scheme: dark;
-        }
-      }
-      :root[data-theme="dark"] {
-        --bg: #1f130c;
-        --card: #34211a;
-        --ink: #fff1d6;
-        --mute: #c4a88e;
-        --sh: #0d0704;
-        --line: #5a3a2b;
-        color-scheme: dark;
-      }
-      * {
-        box-sizing: border-box;
-      }
-      body {
-        margin: 0;
-        background: var(--bg);
-        color: var(--ink);
-        font:
-          500 15px/1.45 "Bricolage Grotesque",
-          system-ui,
-          sans-serif;
-      }
-      button {
-        font: inherit;
-        color: inherit;
-      }
-      .shell {
-        min-height: 100vh;
-      }
-      aside {
-        position: fixed;
-        left: 0;
-        top: 0;
-        bottom: 0;
-        width: 250px;
-        z-index: 40;
-        background: var(--card);
-        border-right: 3px solid var(--ink);
-        display: flex;
-        flex-direction: column;
-        padding: 14px 12px;
-        transform: translateX(-102%);
-        transition: transform 0.3s cubic-bezier(0.3, 0.9, 0.3, 1);
-        overflow-y: auto;
-      }
-      body.side-open aside {
-        transform: none;
-      }
-      .content {
-        min-width: 0;
-        transition: margin-left 0.3s cubic-bezier(0.3, 0.9, 0.3, 1);
-      }
-      .scrim {
-        position: fixed;
-        inset: 0;
-        background: rgba(0, 0, 0, 0.5);
-        z-index: 35;
-        opacity: 0;
-        pointer-events: none;
-        transition: opacity 0.3s;
-      }
-      @media (min-width: 900px) {
-        body.side-open .content {
-          margin-left: 250px;
-        }
-        .scrim {
-          display: none;
-        }
-      }
-      @media (max-width: 899px) {
-        body.side-open .scrim {
-          opacity: 1;
-          pointer-events: auto;
-        }
-      }
-      .brand {
-        display: flex;
-        align-items: baseline;
-        gap: 8px;
-        font-size: 22px;
-        font-weight: 800;
-        letter-spacing: -0.02em;
-        padding: 6px 8px 14px;
-        color: var(--red);
-      }
-      .brand small {
-        color: var(--mute);
-        font-size: 12px;
-        font-weight: 700;
-      }
-      nav {
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-      }
-      nav button {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        width: 100%;
-        text-align: left;
-        border: 2px solid transparent;
-        background: none;
-        color: var(--ink);
-        border-radius: 12px;
-        padding: 11px 12px;
-        font-weight: 700;
-        cursor: pointer;
-      }
-      nav button i {
-        font-style: normal;
-        font-size: 19px;
-        width: 24px;
-        text-align: center;
-      }
-      nav button:hover {
-        background: color-mix(in srgb, var(--mustard) 22%, transparent);
-      }
-      nav button.on {
-        background: var(--mustard);
-        color: #3a1c0d;
-        border-color: var(--ink);
-        box-shadow: 3px 3px 0 var(--sh);
-      }
-      nav .badge {
-        margin-left: auto;
-      }
-      .sidefoot {
-        margin-top: auto;
-        padding-top: 16px;
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-        border-top: 2px dashed var(--line);
-      }
-      .theme {
-        display: flex;
-        border: 2px solid var(--ink);
-        border-radius: 12px;
-        overflow: hidden;
-      }
-      .theme button {
-        flex: 1;
-        border: 0;
-        background: none;
-        padding: 8px 0;
-        font-size: 17px;
-        cursor: pointer;
-      }
-      .theme button.on {
-        background: var(--mustard);
-      }
-      .lo {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        border: 2px solid var(--ink);
-        background: var(--card);
-        border-radius: 12px;
-        padding: 10px 12px;
-        font-weight: 800;
-        cursor: pointer;
-        color: var(--red);
-      }
-      .lo i {
-        font-style: normal;
-      }
-      header {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        padding: 12px 20px;
-        background: var(--red);
-        color: #fff;
-        border-bottom: 3px solid var(--ink);
-        position: sticky;
-        top: 0;
-        z-index: 5;
-      }
-      header h1 {
-        margin: 0;
-        font-size: 22px;
-        font-weight: 800;
-        letter-spacing: -0.02em;
-      }
-      #burger {
-        border: 2px solid var(--ink);
-        background: var(--card);
-        color: var(--ink);
-        border-radius: 10px;
-        width: 42px;
-        height: 42px;
-        font-size: 20px;
-        cursor: pointer;
-      }
-      #login {
-        position: fixed;
-        inset: 0;
-        z-index: 100;
-        background: var(--bg);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 20px;
-      }
-      #login .box {
-        width: min(380px, 100%);
-      }
-      #login h1 {
-        margin: 0 0 4px;
-        font-size: 28px;
-        font-weight: 800;
-        letter-spacing: -0.02em;
-      }
-      #login label {
-        display: block;
-        font-weight: 700;
-        margin: 14px 0 6px;
-      }
-      #login input {
-        width: 100%;
-        padding: 12px;
-        border: 2px solid var(--ink);
-        border-radius: 12px;
-        background: var(--bg);
-        color: var(--ink);
-        font: inherit;
-      }
-      .lerr {
-        color: var(--red);
-        font-weight: 700;
-        min-height: 22px;
-        margin: 8px 0 0;
-      }
-      .btn {
-        width: 100%;
-        margin-top: 10px;
-        background: var(--mustard);
-        color: #3a1c0d;
-        border: 2px solid var(--ink);
-        border-radius: 12px;
-        font-weight: 800;
-        font-size: 16px;
-        padding: 12px;
-        cursor: pointer;
-        box-shadow: 3px 3px 0 var(--sh);
-      }
-      .badge {
-        background: var(--red);
-        color: #fff;
-        border-radius: 99px;
-        padding: 0 7px;
-        margin-left: 6px;
-        font-size: 12px;
-      }
-      main {
-        max-width: 1150px;
-        margin: 0 auto;
-        padding: 20px;
-      }
-      .grid {
-        display: grid;
-        gap: 14px;
-      }
-      .cards {
-        grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-        margin-bottom: 14px;
-      }
-      .two {
-        grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
-        margin-bottom: 14px;
-      }
-      .card {
-        background: var(--card);
-        border: 2px solid var(--ink);
-        border-radius: 16px;
-        padding: 16px;
-        box-shadow: 4px 4px 0 var(--sh);
-      }
-      .card h3 {
-        margin: 0 0 12px;
-        font-size: 17px;
-        font-weight: 800;
-      }
-      .stat .l {
-        color: var(--mute);
-        font-weight: 700;
-        font-size: 13px;
-      }
-      .stat .v {
-        font-size: 26px;
-        font-weight: 800;
-        letter-spacing: -0.02em;
-        line-height: 1.15;
-      }
-      .stat .s {
-        color: var(--mute);
-        font-size: 13px;
-      }
-      .bars {
-        display: flex;
-        align-items: flex-end;
-        gap: 5px;
-        height: 150px;
-      }
-      .bars .c {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        justify-content: flex-end;
-        align-items: center;
-        height: 100%;
-        min-width: 0;
-      }
-      .bar {
-        width: 100%;
-        background: var(--red);
-        border: 2px solid var(--ink);
-        border-radius: 6px 6px 0 0;
-        min-height: 2px;
-        transform-origin: bottom;
-        animation: grow 0.7s cubic-bezier(0.2, 1.2, 0.4, 1) both;
-      }
-      .bar.m {
-        background: var(--mustard);
-      }
-      @keyframes grow {
-        from {
-          transform: scaleY(0);
-        }
-      }
-      .lbl {
-        font-size: 10px;
-        color: var(--mute);
-        margin-top: 4px;
-        white-space: nowrap;
-      }
-      .hb {
-        display: grid;
-        grid-template-columns: minmax(110px, 1.3fr) 3fr auto;
-        gap: 10px;
-        align-items: center;
-        margin-bottom: 9px;
-        font-size: 14px;
-      }
-      .hb .n {
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        font-weight: 700;
-      }
-      .hb .t {
-        height: 16px;
-        background: color-mix(in srgb, var(--mustard) 25%, transparent);
-        border-radius: 99px;
-        overflow: hidden;
-        border: 2px solid var(--ink);
-      }
-      .hb .t i {
-        display: block;
-        height: 100%;
-        background: var(--red);
-        animation: wid 0.8s ease both;
-      }
-      @keyframes wid {
-        from {
-          width: 0 !important;
-        }
-      }
-      .split {
-        display: flex;
-        height: 26px;
-        border: 2px solid var(--ink);
-        border-radius: 99px;
-        overflow: hidden;
-        margin: 6px 0 10px;
-      }
-      .split i {
-        display: block;
-        height: 100%;
-      }
-      .tablewrap {
-        overflow-x: auto;
-      }
-      table {
-        width: 100%;
-        border-collapse: collapse;
-        min-width: 640px;
-      }
-      th,
-      td {
-        text-align: left;
-        padding: 10px 12px;
-        border-bottom: 2px dashed var(--line);
-      }
-      th {
-        font-size: 13px;
-        color: var(--mute);
-      }
-      input[type="search"] {
-        width: 100%;
-        max-width: 340px;
-        padding: 10px 14px;
-        border: 2px solid var(--ink);
-        border-radius: 12px;
-        background: var(--card);
-        color: var(--ink);
-        font: inherit;
-        margin-bottom: 12px;
-      }
-      .chips {
-        display: flex;
-        gap: 8px;
-        flex-wrap: wrap;
-        margin-bottom: 14px;
-      }
-      .chips button {
-        border: 2px solid var(--ink);
-        background: var(--card);
-        border-radius: 99px;
-        padding: 6px 14px;
-        font-weight: 700;
-        cursor: pointer;
-      }
-      .chips button.on {
-        background: var(--mustard);
-        color: #3a1c0d;
-      }
-      .order {
-        margin-bottom: 14px;
-      }
-      .oh {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px 14px;
-        align-items: center;
-        margin-bottom: 8px;
-      }
-      .oh b {
-        font-size: 18px;
-      }
-      .tag {
-        display: inline-block;
-        border: 2px solid var(--ink);
-        border-radius: 99px;
-        padding: 1px 10px;
-        font-size: 12px;
-        font-weight: 800;
-        background: var(--card);
-      }
-      .s-new {
-        background: var(--mustard);
-        color: #3a1c0d;
-      }
-      .s-cooking {
-        background: #f6a35c;
-        color: #3a1c0d;
-      }
-      .s-delivering {
-        background: #8cc4f2;
-        color: #3a1c0d;
-      }
-      .s-done {
-        background: #8fd3a5;
-        color: #3a1c0d;
-      }
-      .s-cancelled {
-        background: #e6a29b;
-        color: #3a1c0d;
-      }
-      .s-completed {
-        background: #c9b8f0;
-        color: #3a1c0d;
-      }
-      .oi {
-        margin: 6px 0 10px;
-        padding-left: 18px;
-      }
-      .act {
-        display: flex;
-        gap: 8px;
-        flex-wrap: wrap;
-      }
-      .act button {
-        border: 2px solid var(--ink);
-        background: var(--card);
-        border-radius: 10px;
-        padding: 6px 12px;
-        font-weight: 700;
-        cursor: pointer;
-        box-shadow: 2px 2px 0 var(--sh);
-      }
-      .act button:active {
-        transform: translate(1px, 1px);
-        box-shadow: 1px 1px 0 var(--sh);
-      }
-      .act button[disabled] {
-        opacity: 0.4;
-        cursor: default;
-      }
-      .muted {
-        color: var(--mute);
-      }
-      #toast {
-        position: fixed;
-        left: 50%;
-        bottom: 24px;
-        transform: translate(-50%, 120px);
-        background: var(--ink);
-        color: var(--bg);
-        padding: 10px 18px;
-        border-radius: 12px;
-        font-weight: 700;
-        transition: transform 0.35s cubic-bezier(0.2, 1.3, 0.4, 1);
-        z-index: 9;
-      }
-      #toast.show {
-        transform: translate(-50%, 0);
-      }
-      .mrow {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: center;
-        gap: 8px 14px;
-        padding: 10px 0;
-        border-bottom: 2px dashed var(--line);
-      }
-      .mrow:last-child {
-        border-bottom: 0;
-      }
-      .mrow .mn {
-        flex: 1;
-        min-width: 200px;
-      }
-      .mrow .mp {
-        font-weight: 800;
-      }
-      .mrow.sold .mn {
-        opacity: 0.5;
-        text-decoration: line-through;
-      }
-      dialog {
-        border: 2px solid var(--ink);
-        border-radius: 16px;
-        background: var(--card);
-        color: var(--ink);
-        padding: 20px;
-        width: min(420px, 92vw);
-        box-shadow: 5px 5px 0 var(--sh);
-      }
-      dialog::backdrop {
-        background: rgba(0, 0, 0, 0.45);
-      }
-      dialog h3 {
-        margin: 0 0 6px;
-      }
-      dialog label {
-        display: block;
-        font-weight: 700;
-        margin-top: 12px;
-      }
-      dialog input,
-      dialog textarea {
-        width: 100%;
-        padding: 10px 12px;
-        border: 2px solid var(--ink);
-        border-radius: 10px;
-        background: var(--bg);
-        color: var(--ink);
-        font: inherit;
-        margin-top: 4px;
-      }
-      .th {
-        width: 44px;
-        height: 44px;
-        border-radius: 10px;
-        object-fit: cover;
-        border: 2px solid var(--ink);
-        vertical-align: middle;
-        margin-right: 8px;
-      }
-      .rnd2 {
-        border-top: 2px dashed var(--line);
-        padding-top: 10px;
-        margin-top: 10px;
-      }
-      .tchip small {
-        color: var(--mute);
-        font-weight: 700;
-        font-size: 12px;
-      }
-      .tg {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-      }
-      .tchip {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        border: 2px solid var(--ink);
-        border-radius: 12px;
-        padding: 6px 12px;
-        font-weight: 800;
-        background: var(--card);
-      }
-      .tchip.busy {
-        background: #e6a29b;
-        color: #3a1c0d;
-      }
-      .tchip button {
-        border: 0;
-        background: none;
-        color: var(--red);
-        font-size: 18px;
-        font-weight: 800;
-        cursor: pointer;
-        padding: 0 0 0 4px;
-      }
-      .pw {
-        font-family: monospace;
-        font-weight: 700;
-        letter-spacing: 0.5px;
-      }
-      .eye {
-        border: 0;
-        background: none;
-        cursor: pointer;
-        font-size: 17px;
-        padding: 0 4px;
-      }
-      [hidden] {
-        display: none !important;
-      }
-    </style>
-  </head>
-  <body>
-    <div class="shell">
-      <aside id="side" aria-label="Asosiy menyu">
-        <div class="brand">🌭 <span>O'rinboy</span><small>Admin</small></div>
-        <nav id="nav">
-          <button data-t="dash" class="on">
-            <i>📊</i><span>Statistika</span>
-          </button>
-          <button data-t="orders">
-            <i>🧾</i><span>Buyurtmalar</span
-            ><span class="badge" id="newb" hidden>0</span>
-          </button>
-          <button data-t="users"><i>👥</i><span>Mijozlar</span></button>
-          <button data-t="menu"><i>🍔</i><span>Menyu</span></button>
-          <button data-t="zones">
-            <i>🛵</i><span>Yetkazish hududlari</span>
-          </button>
-          <button data-t="zal">
-            <i>🍽️</i><span>Zal</span
-            ><span class="badge" id="zalb" hidden>0</span>
-          </button>
-          <button data-t="couriers">
-            <i>🚗</i><span>Dastavchiklar</span
-            ><span class="badge" id="cb" hidden>0</span>
-          </button>
-        </nav>
-        <div class="sidefoot">
-          <div class="theme" id="theme" role="group" aria-label="Mavzu">
-            <button
-              data-th="light"
-              title="Yorug' mavzu"
-              aria-label="Yorug' mavzu"
-            >
-              ☀️
-            </button>
-            <button
-              data-th="auto"
-              title="Qurilma sozlamasi bo'yicha"
-              aria-label="Avtomatik mavzu"
-            >
-              🖥️
-            </button>
-            <button
-              data-th="dark"
-              title="Qorong'u mavzu"
-              aria-label="Qorong'u mavzu"
-            >
-              🌙
-            </button>
-          </div>
-          <button class="lo" id="logout"><i>🚪</i><span>Chiqish</span></button>
-        </div>
-      </aside>
-      <div class="scrim" id="scrim"></div>
-      <div class="content">
-        <header>
-          <button
-            id="burger"
-            aria-label="Menyuni ochish yoki yopish"
-            aria-expanded="false"
-          >
-            ☰
-          </button>
-          <h1 id="ptitle">Statistika</h1>
-        </header>
-        <main>
-          <section id="dash"></section>
-          <section id="orders" hidden></section>
-          <section id="users" hidden></section>
-          <section id="menu" hidden></section>
-          <section id="zones" hidden></section>
-          <section id="zal" hidden></section>
-          <section id="couriers" hidden></section>
-        </main>
-      </div>
-    </div>
-    <div id="login" hidden>
-      <form class="card box" id="lf">
-        <h1>🌭 O'rinboy Admin</h1>
-        <p class="muted" style="margin: 0">
-          Davom etish uchun parolni kiriting
-        </p>
-        <label for="lp">Parol</label
-        ><input
-          id="lp"
-          type="password"
-          autocomplete="current-password"
-          required
-        />
-        <p class="lerr" id="lerr" role="alert"></p>
-        <button class="btn" type="submit">Kirish</button>
-      </form>
-    </div>
-    <div id="toast" role="status"></div>
-    <dialog id="dlg">
-      <form id="mf">
-        <h3 id="dt">Yangi mahsulot</h3>
-        <label>Bo'lim<input id="fc" list="dc" required maxlength="40" /></label
-        ><datalist id="dc"></datalist>
-        <label>Nomi<input id="fn" required maxlength="80" /></label>
-        <label>Tavsif (ixtiyoriy)<input id="fd" maxlength="120" /></label>
-        <label
-          >Narxi (so'm)<input
-            id="fp"
-            type="number"
-            min="1000"
-            step="500"
-            required
-        /></label>
-        <div class="act" style="margin-top: 14px">
-          <button type="submit">Saqlash</button
-          ><button type="button" id="cancelm">Bekor</button>
-        </div>
-      </form>
-    </dialog>
-    <dialog id="dlgz">
-      <form id="zf">
-        <h3 id="zt">Yangi hudud</h3>
-        <label>Hudud nomi<input id="zn" required maxlength="60" /></label>
-        <label
-          >Yetkazib berish narxi (so'm)<input
-            id="zfee"
-            type="number"
-            min="0"
-            step="500"
-            required
-        /></label>
-        <label style="display: flex; gap: 8px; align-items: center"
-          ><input id="zp" type="checkbox" style="width: auto; margin: 0" /> Olib
-          ketish (manzil kerak emas)</label
-        >
-        <div class="act" style="margin-top: 14px">
-          <button type="submit">Saqlash</button
-          ><button type="button" id="cancelz">Bekor</button>
-        </div>
-      </form>
-    </dialog>
-    <dialog id="dlgb">
-      <form id="bf">
-        <h3>Ko'p hudud qo'shish</h3>
-        <p class="muted" style="margin: 4px 0 0">
-          Har qatorga bitta hudud: <b>Nomi - narxi</b><br />Masalan:
-          <code>Andalib - 15000</code>
-        </p>
-        <textarea
-          id="bt"
-          rows="10"
-          required
-          placeholder="Andalib - 15000&#10;Xonqa markaz - 10000&#10;Uzoq mahalla - 20000"
-        ></textarea>
-        <div class="act" style="margin-top: 14px">
-          <button type="submit">Qo'shish</button
-          ><button type="button" id="cancelb">Bekor</button>
-        </div>
-      </form>
-    </dialog>
-    <dialog id="dlgt">
-      <form id="tf">
-        <h3>Stol qo'shish</h3>
-        <label
-          >Zal nomi<input id="tz" required maxlength="30" placeholder="1-zal"
-        /></label>
-        <label
-          >Stol raqami: dan<input id="ta" type="number" min="1" required
-        /></label>
-        <label>gacha<input id="tb" type="number" min="1" required /></label>
-        <label
-          >Har bir stolda o'rindiqlar soni<input
-            id="ts"
-            type="number"
-            min="1"
-            max="50"
-            value="4"
-            required
-        /></label>
-        <p class="muted" style="margin: 8px 0 0">
-          Bitta stol uchun ikkala joyga bir xil son yozing.
-        </p>
-        <div class="act" style="margin-top: 14px">
-          <button type="submit">Qo'shish</button
-          ><button type="button" id="cancelt">Bekor</button>
-        </div>
-      </form>
-    </dialog>
-    <input type="file" id="imgf" accept="image/*" hidden />
-
-    <script>
-      const $ = (s) => document.querySelector(s);
-      const fmt = (n) =>
-        Number(n || 0)
-          .toLocaleString("ru-RU")
-          .replace(/\u00a0/g, " ") + " so'm";
-      const esc = (s) =>
-        String(s ?? "").replace(
-          /[&<>"']/g,
-          (c) =>
-            ({
-              "&": "&amp;",
-              "<": "&lt;",
-              ">": "&gt;",
-              '"': "&quot;",
-              "'": "&#39;",
-            })[c],
-        );
-      const ST = {
-        new: "Yangi",
-        cooking: "Tayyorlanmoqda",
-        delivering: "Yo'lda",
-        done: "Yetkazildi",
-        completed: "Yakunlangan",
-        cancelled: "Bekor qilingan",
-      };
-      const MON = [
-        "yan",
-        "fev",
-        "mar",
-        "apr",
-        "may",
-        "iyn",
-        "iyl",
-        "avg",
-        "sen",
-        "okt",
-        "noy",
-        "dek",
-      ];
-      let S = null,
-        U = [],
-        O = [],
-        M = [],
-        Z = [],
-        W = [],
-        T = [],
-        ZO = [],
-        C = [],
-        zsub = "orders",
-        imgTarget = null,
-        filter = "active",
-        tab = "dash",
-        q = "",
-        editId = null,
-        zoneId = null,
-        zq = "";
-      const NEXT = {
-        new: ["cooking", "cancelled"],
-        cooking: ["delivering", "cancelled"],
-        delivering: ["done", "cancelled"],
-        done: ["completed"],
-        completed: [],
-        cancelled: [],
-      };
-      const post = (u, method, body) =>
-        api(u, {
-          method,
-          headers: { "Content-Type": "application/json", "X-Admin": "1" },
-          body: body ? JSON.stringify(body) : undefined,
-        });
-
-      let authed = true;
-      function showLogin() {
-        authed = false;
-        $("#login").hidden = false;
-        $("#lp").value = "";
-        setTimeout(() => $("#lp").focus(), 50);
-      }
-      async function api(u, o) {
-        const r = await fetch(u, o);
-        if (r.status === 401) {
-          showLogin();
-          throw new Error("login");
-        }
-        if (!r.ok) throw new Error(r.status);
-        return r.json();
-      }
-      function toast(t) {
-        const e = $("#toast");
-        e.textContent = t;
-        e.classList.add("show");
-        clearTimeout(toast.t);
-        toast.t = setTimeout(() => e.classList.remove("show"), 2600);
-      }
-      const stat = (l, v, s = "") =>
-        `<div class="card stat"><div class="l">${l}</div><div class="v">${v}</div><div class="s">${s}</div></div>`;
-
-      function dash() {
-        const d = S.daily,
-          mx = Math.max(1, ...d.map((x) => x.revenue)),
-          hm = Math.max(1, ...S.hours);
-        const pm = Math.max(1, ...S.products.map((p) => p.qty)),
-          tot = S.pay.cash + S.pay.card || 1;
-        const cp = Math.round((S.pay.cash / tot) * 100);
-        const top = U.filter((u) => u.orders > 0).slice(0, 5);
-        $("#dash").innerHTML = `
-  <div class="grid cards">
-    ${stat("Bugun", S.today_orders + " ta", fmt(S.today_revenue))}
-    ${stat("Jami tushum", fmt(S.revenue), S.orders + " ta buyurtma")}
-    ${stat("O'rtacha chek", fmt(S.avg))}
-    ${stat("Mijozlar", S.users + " ta", "ro'yxatdan o'tgan")}
-    ${stat("Yangi buyurtma", S.new + " ta", "javob kutmoqda")}
-    ${stat("Yetkazib berish tushumi", fmt(S.delivery_revenue), "jami summa ichida")}
-    ${stat("Mijoz bahosi", S.rating_count ? "⭐ " + S.rating_avg : "—", S.rating_count + " ta baho")}
-  </div>
-  <div class="grid two">
-    <div class="card"><h3>So'nggi 14 kun (tushum)</h3><div class="bars">${d
-      .map((x) => {
-        const dt = x.d.split("-");
-        return `<div class="c" title="${x.d}: ${x.orders} ta, ${fmt(x.revenue)}"><div class="bar" style="height:${(x.revenue / mx) * 100}%"></div><div class="lbl">${+dt[2]}</div></div>`;
-      })
-      .join("")}</div></div>
-    <div class="card"><h3>Qaysi soatda ko'p buyurtma</h3><div class="bars">${S.hours.map((h, i) => `<div class="c" title="${i}:00 — ${h} ta"><div class="bar m" style="height:${(h / hm) * 100}%"></div><div class="lbl">${i % 3 === 0 ? i : ""}</div></div>`).join("")}</div></div>
-  </div>
-  <div class="grid two">
-    <div class="card"><h3>Eng ko'p buyurtma qilingan xot-doglar</h3>${
-      S.products.length
-        ? S.products
-            .slice(0, 8)
-            .map(
-              (p) =>
-                `<div class="hb"><div class="n" title="${esc(p.name)}">${esc(p.name)}</div><div class="t"><i style="width:${(p.qty / pm) * 100}%"></i></div><div><b>${p.qty}</b> <span class="muted">ta</span></div></div>`,
-            )
-            .join("")
-        : "<p class=\"muted\">Hozircha ma'lumot yo'q.</p>"
-    }</div>
-    <div class="card"><h3>To'lov turi</h3>
-      <div class="split"><i style="width:${cp}%;background:var(--mustard)"></i><i style="width:${100 - cp}%;background:var(--blue)"></i></div>
-      <div>💵 Naqd: <b>${S.pay.cash}</b> ta (${cp}%)</div><div>💳 Karta: <b>${S.pay.card}</b> ta (${100 - cp}%)</div>
-      <h3 style="margin-top:18px">Eng faol mijozlar</h3>
-      ${top.length ? top.map((u, i) => `<div class="hb" style="grid-template-columns:24px 1fr auto"><b>${i + 1}</b><div class="n">${esc(u.name)}</div><div><b>${u.orders}</b> <span class="muted">ta · ${fmt(u.spent)}</span></div></div>`).join("") : "<p class=\"muted\">Hozircha ma'lumot yo'q.</p>"}
-    </div>
-  </div>
-  <div class="card"><h3>Mahsulotlar bo'yicha tushum</h3><div class="tablewrap"><table><tr><th>Mahsulot</th><th>Sotilgan</th><th>Tushum</th></tr>
-  ${S.products.map((p) => `<tr><td>${esc(p.name)}</td><td>${p.qty} ta</td><td>${fmt(p.revenue)}</td></tr>`).join("") || '<tr><td colspan="3" class="muted">Hozircha ma\'lumot yo\'q.</td></tr>'}</table></div></div>`;
-      }
-
-      function ago(s) {
-        if (!s) return "—";
-        const d = new Date(s.replace(" ", "T"));
-        return `${d.getDate()} ${MON[d.getMonth()]}, ${s.slice(11, 16)}`;
-      }
-
-      function users() {
-        const k = q.toLowerCase(),
-          L = U.filter(
-            (u) =>
-              !k ||
-              (u.name + " " + u.phone + " " + u.address)
-                .toLowerCase()
-                .includes(k),
-          );
-        $("#users").innerHTML =
-          `<input type="search" id="qs" placeholder="Ism, telefon yoki manzil bo'yicha qidirish" value="${esc(q)}">
-  <div class="card"><div class="tablewrap"><table><tr><th>Mijoz</th><th>Telefon</th><th>Manzil</th><th>Buyurtmalar</th><th>Jami summa</th><th>Ro'yxatdan o'tgan</th></tr>
-  ${L.map((u) => `<tr><td><b>${esc(u.name)}</b></td><td>${esc(u.phone)}</td><td>${esc(u.address)}</td><td><b>${u.orders}</b> ta</td><td>${fmt(u.spent)}</td><td>${ago(u.registered)}</td></tr>`).join("") || '<tr><td colspan="6" class="muted">Mijoz topilmadi.</td></tr>'}</table></div></div>`;
-        const el = $("#qs");
-        el.focus();
-        el.setSelectionRange(q.length, q.length);
-        el.oninput = () => {
-          q = el.value;
-          users();
-        };
-      }
-
-      function orders() {
-        const isA = (o) => !["completed", "cancelled"].includes(o.status);
-        const L = O.filter(
-          (o) =>
-            filter === "all" ||
-            (filter === "active" ? isA(o) : o.status === filter),
-        );
-        const cnt = (s) =>
-          O.filter(
-            (o) => s === "all" || (s === "active" ? isA(o) : o.status === s),
-          ).length;
-        $("#orders").innerHTML =
-          `<div class="chips">${["active", "all", ...Object.keys(ST)].map((s) => `<button data-f="${s}" class="${filter === s ? "on" : ""}">${s === "all" ? "Hammasi" : s === "active" ? "Faol" : ST[s]} (${cnt(s)})</button>`).join("")}</div>` +
-          (L.map(
-            (
-              o,
-            ) => `<div class="card order"><div class="oh"><b>#${o.id}</b><span class="tag s-${o.status}">${ST[o.status]}</span><span class="tag">${o.pay === "card" ? "💳 Karta" : "💵 Naqd"}</span>${o.rating ? `<span class="tag">⭐ ${o.rating}</span>` : ""}<span class="muted">${ago(o.created)}</span><b style="margin-left:auto">${fmt(o.total)}</b></div>
-   <div><b>${esc(o.name || "Noma'lum")}</b> · ${esc(o.phone || "")}<br><span class="muted">📍 ${esc(o.address)}</span>${o.zone ? `<br><span class="muted">🛵 ${esc(o.zone)}${o.delivery ? " · " + fmt(o.delivery) : ""}</span>` : ""}${o.courier ? `<br><span class="muted">🚗 Dastavchik: <b>${esc(o.courier)}</b> · ${esc(o.courier_phone)} · ${esc(o.car)}</span>` : ""}${o.comment ? `<br><span class="muted">💬 ${esc(o.comment)}</span>` : ""}</div>
-   <ul class="oi">${o.items.map((i) => `<li>${esc(i.name)} × ${i.qty}</li>`).join("")}</ul>
-   <div class="act">${(NEXT[o.status] || []).map((s) => `<button data-id="${o.id}" data-s="${s}">${s === "completed" ? "Yakunlash" : ST[s]}</button>`).join("") || '<span class="muted">Yakunlangan</span>'}</div></div>`,
-          ).join("") || '<p class="muted">Buyurtma yo\'q.</p>');
-      }
-
-      async function load() {
-        if (!authed) return;
-        try {
-          [S, U, O, M, Z, W, T, ZO, C] = await Promise.all([
-            api("/api/stats"),
-            api("/api/users"),
-            api("/api/orders"),
-            api("/api/menu"),
-            api("/api/zones"),
-            api("/api/waiters"),
-            api("/api/tables"),
-            api("/api/zal/orders"),
-            api("/api/couriers"),
-          ]);
-        } catch (e) {
-          if (e.message !== "login") toast("Ma'lumot olinmadi");
-          return;
-        }
-        const b = $("#newb");
-        b.hidden = !S.new;
-        b.textContent = S.new;
-        const zb = $("#zalb");
-        zb.hidden = !S.zal_new;
-        zb.textContent = S.zal_new;
-        const cp = C.filter((c) => c.status === "pending").length,
-          cbd = $("#cb");
-        cbd.hidden = !cp;
-        cbd.textContent = cp;
-        const nn = S.new + S.zal_new;
-        document.title = (nn ? `(${nn}) ` : "") + "O'rinboy Admin";
-        if (tab === "dash") dash();
-        else if (tab === "orders") orders();
-        else if (tab === "menu") menuTab();
-        else if (tab === "zones") {
-          if (document.activeElement.id !== "zq") zonesTab();
-        } else if (tab === "zal") zalTab();
-        else if (tab === "couriers") couriersTab();
-        else if (document.activeElement.id !== "qs") users();
-      }
-      $("#nav").onclick = (e) => {
-        const b = e.target.closest("button");
-        if (!b) return;
-        tab = b.dataset.t;
-        $("#ptitle").textContent = b.querySelector("span").textContent;
-        if (!wide()) setSide(false);
-        [...$("#nav").children].forEach((x) =>
-          x.classList.toggle("on", x === b),
-        );
-        ["dash", "orders", "users", "menu", "zones", "zal", "couriers"].forEach(
-          (t) => ($("#" + t).hidden = t !== tab),
-        );
-        load();
-      };
-      $("#orders").onclick = async (e) => {
-        const f = e.target.closest("[data-f]");
-        if (f) {
-          filter = f.dataset.f;
-          orders();
-          return;
-        }
-        const b = e.target.closest("[data-s]");
-        if (!b) return;
-        if (
-          b.dataset.s === "cancelled" &&
-          !confirm("Buyurtmani bekor qilasizmi? Mijozga xabar ketadi.")
-        )
-          return;
-        try {
-          const r = await api(`/api/orders/${b.dataset.id}/status`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", "X-Admin": "1" },
-            body: JSON.stringify({ status: b.dataset.s }),
-          });
-          toast(
-            r.notified
-              ? "Holat saqlandi, mijozga xabar yuborildi"
-              : "Holat saqlandi (mijozga xabar yuborilmadi)",
-          );
-          load();
-        } catch (err) {
-          toast("Xatolik yuz berdi");
-        }
-      };
-      function zonesTab(focus) {
-        const k = zq.toLowerCase(),
-          L = Z.filter((z) => !k || z.name.toLowerCase().includes(k));
-        $("#zones").innerHTML =
-          `<div class="chips"><button id="addz" class="on">+ Yangi hudud</button><button id="bulkz">+ Ko'p hudud qo'shish</button></div><input type="search" id="zq" placeholder="Hududni qidirish" value="${esc(zq)}"><div class="card"><h3>Yetkazib berish narxlari (${Z.length} ta hudud)</h3>` +
-          (L.map(
-            (z) =>
-              `<div class="mrow"><div class="mn"><b>${esc(z.name)}</b>${z.pickup ? ' <span class="muted">(olib ketish)</span>' : ""}</div><div class="mp">${z.pickup ? "bepul" : fmt(z.fee)}</div><div class="act"><button data-zedit="${z.id}">Tahrirlash</button><button data-zdel="${z.id}">O'chirish</button></div></div>`,
-          ).join("") || '<p class="muted">Hudud topilmadi.</p>') +
-          `</div>`;
-        const el = $("#zq");
-        if (focus) {
-          el.focus();
-          el.setSelectionRange(zq.length, zq.length);
-        }
-        el.oninput = () => {
-          zq = el.value;
-          zonesTab(true);
-        };
-      }
-      function openZ(z) {
-        zoneId = z ? z.id : null;
-        $("#zt").textContent = z ? "Hududni tahrirlash" : "Yangi hudud";
-        $("#zn").value = z ? z.name : "";
-        $("#zfee").value = z ? z.fee : "";
-        $("#zp").checked = z ? z.pickup : false;
-        $("#dlgz").showModal();
-      }
-      $("#zones").onclick = async (e) => {
-        const t = e.target.closest("button");
-        if (!t) return;
-        try {
-          if (t.id === "addz") return openZ();
-          if (t.id === "bulkz") {
-            $("#bt").value = "";
-            return $("#dlgb").showModal();
-          }
-          if (t.dataset.zedit)
-            return openZ(Z.find((z) => z.id === t.dataset.zedit));
-          if (t.dataset.zdel && confirm("Hududni o'chirasizmi?")) {
-            await post("/api/zones/" + t.dataset.zdel, "DELETE");
-            toast("O'chirildi");
-            load();
-          }
-        } catch (err) {
-          toast("Xatolik yuz berdi");
-        }
-      };
-      $("#zf").onsubmit = async (e) => {
-        e.preventDefault();
-        const b = {
-          name: $("#zn").value.trim(),
-          fee: +$("#zfee").value,
-          pickup: $("#zp").checked,
-        };
-        try {
-          await post(
-            zoneId ? "/api/zones/" + zoneId : "/api/zones",
-            zoneId ? "PUT" : "POST",
-            b,
-          );
-          $("#dlgz").close();
-          toast("Saqlandi");
-          load();
-        } catch (err) {
-          toast("Saqlab bo'lmadi");
-        }
-      };
-      $("#cancelz").onclick = () => $("#dlgz").close();
-      $("#cancelb").onclick = () => $("#dlgb").close();
-      $("#bf").onsubmit = async (e) => {
-        e.preventDefault();
-        const have = new Set(Z.map((z) => z.name.toLowerCase()));
-        let ok = 0,
-          skip = 0,
-          bad = 0;
-        for (const line of $("#bt").value.split("\n")) {
-          const t = line.trim();
-          if (!t) continue;
-          const m = t.match(/^(.+?)\s*[-–—:;,]\s*(\d[\d\s]*)$/);
-          if (!m) {
-            bad++;
-            continue;
-          }
-          const name = m[1].trim(),
-            fee = parseInt(m[2].replace(/\s/g, ""), 10);
-          if (have.has(name.toLowerCase())) {
-            skip++;
-            continue;
-          }
-          try {
-            await post("/api/zones", "POST", { name, fee, pickup: false });
-            have.add(name.toLowerCase());
-            ok++;
-          } catch (err) {
-            bad++;
-          }
-        }
-        $("#dlgb").close();
-        toast(
-          `${ok} ta qo'shildi` +
-            (skip ? `, ${skip} ta bor edi` : "") +
-            (bad ? `, ${bad} ta qator o'qilmadi` : ""),
-        );
-        load();
-      };
-      const pwShown = new Set();
-      const pwCell = (w) =>
-        w.password
-          ? `<span class="pw">${pwShown.has(w.id) ? esc(w.password) : "••••••••"}</span> <button class="eye" data-eye="${w.id}" aria-label="Parolni ko'rsatish yoki yashirish">${pwShown.has(w.id) ? "🙈" : "👁"}</button>`
-          : '<span class="muted">—</span>';
-      const WST = {
-        approved: "Tasdiqlangan",
-        pending: "Kutilmoqda",
-        blocked: "Bloklangan",
-      };
-      function zGroups() {
-        const by = {};
-        ZO.filter((o) => o.status === "open")
-          .sort((a, b) => a.id - b.id)
-          .forEach((o) => (by[o.table_id] = by[o.table_id] || []).push(o));
-        return Object.values(by).sort(
-          (a, b) =>
-            a[0].zal.localeCompare(b[0].zal) || a[0].number - b[0].number,
-        );
-      }
-      const zTable = (g) => {
-        const f = g[0],
-          tot = g.reduce((s, o) => s + o.total, 0);
-        return (
-          `<div class="card order"><div class="oh"><b>${esc(f.zal)} · Stol ${f.number}</b><span class="tag s-new">Band</span><span class="tag">👥 ${f.table_guests || 0}/${f.seats || "?"}</span><b style="margin-left:auto">Stol hisobi: ${fmt(tot)}</b></div>` +
-          g
-            .map(
-              (o, i) =>
-                `<div class="rnd2"><div class="oh"><b>${i + 1}-buyurtma</b><span class="tag ${o.printed ? "" : "s-cooking"}">${o.printed ? "🖨 Chiqarilgan" : "Chek chiqarilmagan"}</span><span class="muted">${ago(o.created)} · ${esc(o.waiter || "—")} ${esc(o.waiter_phone || "")}${o.guests ? ` · ${o.guests} ta yangi mehmon` : " · qo'shimcha taom"}</span><b style="margin-left:auto">${fmt(o.total)}</b></div>${o.comment ? `<div class="muted">💬 ${esc(o.comment)}</div>` : ""}<ul class="oi">${o.items.map((i) => `<li>${esc(i.name)} × ${i.qty} <span class="muted">— ${fmt(i.price * i.qty)}</span></li>`).join("")}</ul><div class="act"><button data-print="${o.id}">🖨 Chek</button></div></div>`,
-            )
-            .join("") +
-          `<div class="act" style="margin-top:10px"><button data-bill="${f.table_id}">🖨 Umumiy hisob</button><button data-tfree="${f.table_id}">Hisobni yopish: stolni bo'shatish</button></div></div>`
-        );
-      };
-      function printBill(g) {
-        const m = {};
-        g.forEach((o) =>
-          o.items.forEach((i) => {
-            (m[i.id] = m[i.id] || {
-              name: i.name,
-              qty: 0,
-              price: i.price,
-            }).qty += i.qty;
-          }),
-        );
-        printOrder({
-          zal: g[0].zal,
-          number: g[0].number,
-          created: g[g.length - 1].created,
-          items: Object.values(m),
-          total: g.reduce((s, o) => s + o.total, 0),
-          comment: "",
-          waiter: [...new Set(g.map((o) => o.waiter))].join(", "),
-          id: 0,
-          bill: true,
-        });
-      }
-      const zOrder = (
-        o,
-      ) => `<div class="card order"><div class="oh"><b>${esc(o.zal)} · Stol ${o.number}</b><span class="tag ${o.status === "open" ? "s-new" : "s-completed"}">${o.status === "open" ? "Band" : "Yopilgan"}</span><span class="tag ${o.printed ? "" : "s-cooking"}">${o.printed ? "🖨 Chiqarilgan" : "Chek chiqarilmagan"}</span><span class="muted">${ago(o.created)}</span><b style="margin-left:auto">${fmt(o.total)}</b></div>
-<div>Ofitsant: <b>${esc(o.waiter || "—")}</b> · ${esc(o.waiter_phone || "")}${o.comment ? `<br><span class="muted">💬 ${esc(o.comment)}</span>` : ""}</div>
-<ul class="oi">${o.items.map((i) => `<li>${esc(i.name)} × ${i.qty} <span class="muted">— ${fmt(i.price * i.qty)}</span></li>`).join("")}</ul>
-<div class="act"><button data-print="${o.id}">🖨 Chek chiqarish</button>${o.status === "open" ? `<button data-zfree="${o.id}">Stolni bo'shatish</button>` : ""}</div></div>`;
-      function zalTab() {
-        const open = ZO.filter((o) => o.status === "open"),
-          pend = W.filter((w) => w.status === "pending").length;
-        const chips = [
-          ["orders", `Buyurtmalar (${zGroups().length})`],
-          ["tables", `Stollar (${T.length})`],
-          [
-            "waiters",
-            `Ofitsantlar (${W.length})${pend ? ` · ${pend} ta yangi` : ""}`,
-          ],
-        ]
-          .map(
-            ([k, l]) =>
-              `<button data-zs="${k}" class="${zsub === k ? "on" : ""}">${l}</button>`,
-          )
-          .join("");
-        let body = "";
-        if (zsub === "orders")
-          body =
-            zGroups().map(zTable).join("") +
-              ZO.filter((o) => o.status !== "open")
-                .map(zOrder)
-                .join("") || '<p class="muted">Zal buyurtmasi yo\'q.</p>';
-        else if (zsub === "tables") {
-          const zs = [...new Set(T.map((t) => t.zal))];
-          body =
-            `<div class="chips"><button id="addt" class="on">+ Stol qo'shish</button></div>` +
-            (zs
-              .map(
-                (z) =>
-                  `<div class="card order"><h3>${esc(z)}</h3><div class="tg">` +
-                  T.filter((t) => t.zal === z)
-                    .map(
-                      (t) =>
-                        `<span class="tchip${t.busy ? " busy" : ""}">${t.number}<small>${t.seats || 4} o'rin</small><button data-tseats="${t.id}" title="O'rindiqlar sonini o'zgartirish" aria-label="O'rindiqlar sonini o'zgartirish">✎</button>${t.busy ? "" : `<button data-tdel="${t.id}" aria-label="Stolni o'chirish">×</button>`}</span>`,
-                    )
-                    .join("") +
-                  `</div></div>`,
-              )
-              .join("") || '<p class="muted">Stol yo\'q.</p>');
-        } else
-          body =
-            `<div class="card"><div class="tablewrap"><table><tr><th>Ofitsant</th><th>Telefon</th><th>Login</th><th>Parol</th><th>Ro'yxatdan o'tgan</th><th>Holat</th><th></th></tr>` +
-            (W.map(
-              (w) =>
-                `<tr><td><b>${esc(w.name)}</b></td><td>${esc(w.phone)}</td><td>${esc(w.login)}</td><td>${pwCell(w)}</td><td>${ago(w.created)}</td><td><span class="tag ${w.status === "approved" ? "s-done" : w.status === "pending" ? "s-new" : "s-cancelled"}">${WST[w.status]}</span></td><td><div class="act">${w.status !== "approved" ? `<button data-wst="${w.id}:approved">Tasdiqlash</button>` : `<button data-wst="${w.id}:blocked">Bloklash</button>`}<button data-wpw="${w.id}">Parolni o'zgartirish</button><button data-wdel="${w.id}">O'chirish</button></div></td></tr>`,
-            ).join("") ||
-              '<tr><td colspan="7" class="muted">Ofitsant yo\'q.</td></tr>') +
-            `</table></div></div><p class="muted">Ofitsantlar shu manzil orqali kiradi: <b>${esc(location.origin)}/waiter</b></p>`;
-        $("#zal").innerHTML = `<div class="chips">${chips}</div>` + body;
-      }
-      const money = (n) => Number(n).toLocaleString("ru-RU");
-      function receiptHtml(o) {
-        const rows = o.items
-          .map(
-            (i) =>
-              `<tr><td colspan="2" class="nm">${esc(i.name)}</td></tr><tr><td class="q">${money(i.price)} × ${i.qty}</td><td class="r">${money(i.price * i.qty)}</td></tr>`,
-          )
-          .join("");
-        return `<!doctype html><meta charset="utf-8"><style>@page{size:80mm auto;margin:3mm}body{width:72mm;font:13px/1.35 monospace;margin:0}h1{font-size:18px;text-align:center;margin:0 0 4px}.c{text-align:center}table{width:100%;border-collapse:collapse}td{padding:1px 0;vertical-align:top}.nm{font-weight:bold;padding-top:5px}.q{padding-bottom:2px}.r{text-align:right;white-space:nowrap;padding-left:6px}hr{border:0;border-top:1px dashed #000;margin:6px 0}.t{font-size:16px;font-weight:bold}</style><h1>O'RINBOY HOTDOG</h1><div class="c">${esc(o.zal)} · STOL ${o.number}</div><div class="c">${esc(o.created)}</div><hr><table>${rows}</table><hr><table><tr class="t"><td>JAMI</td><td class="r">${money(o.total)} so'm</td></tr></table>${o.comment ? `<hr><div>Izoh: ${esc(o.comment)}</div>` : ""}<hr><div>Ofitsant: ${esc(o.waiter || "")}</div><div class="c">${o.bill ? "UMUMIY HISOB" : "Buyurtma #" + o.id}</div>`;
-      }
-      // Chop etish oynasi yopilgach hal bo'ladigan va'da qaytaradi (chop etildimi yoki bekor qilindimi, brauzer aytmaydi)
-      function printOrder(o) {
-        return new Promise((res) => {
-          const f = document.createElement("iframe");
-          f.style.cssText =
-            "position:fixed;right:0;bottom:0;width:0;height:0;border:0";
-          document.body.appendChild(f);
-          const win = f.contentWindow,
-            d = win.document;
-          d.open();
-          d.write(receiptHtml(o));
-          d.close();
-          let done = false;
-          const fin = () => {
-            if (done) return;
-            done = true;
-            setTimeout(() => {
-              f.remove();
-              res();
-            }, 300);
-          };
-          win.onafterprint = fin;
-          setTimeout(() => {
-            win.focus();
-            win.print();
-          }, 300);
-          setTimeout(fin, 5 * 60 * 1000);
-        });
-      }
-      $("#zal").onclick = async (e) => {
-        const t = e.target.closest("button");
-        if (!t) return;
-        try {
-          if (t.dataset.zs) {
-            zsub = t.dataset.zs;
-            return zalTab();
-          }
-          if (t.dataset.print) {
-            const o = ZO.find((x) => x.id == t.dataset.print);
-            await printOrder(o);
-            if (
-              confirm(
-                "Chek printerdan chiqdimi?\n\nOK: «Chiqarilgan» deb belgilanadi.\nBekor: belgilanmaydi (chop etmagan bo'lsangiz).",
-              )
-            ) {
-              await post(`/api/zal/orders/${o.id}/printed`, "POST");
-              toast("Chiqarilgan deb belgilandi");
-            }
-            return load();
-          }
-          if (t.dataset.zfree) {
-            if (confirm("Stol bo'shatilsinmi?")) {
-              await post(`/api/zal/orders/${t.dataset.zfree}/close`, "POST");
-              toast("Stol bo'shatildi");
-              load();
-            }
-            return;
-          }
-          if (t.dataset.bill) {
-            printBill(zGroups().find((g) => g[0].table_id == t.dataset.bill));
-            return;
-          }
-          if (t.dataset.tfree) {
-            if (confirm("Stol hisobi yopilib, stol bo'shatilsinmi?")) {
-              await post(`/api/tables/${t.dataset.tfree}/free`, "POST");
-              toast("Stol bo'shatildi");
-              load();
-            }
-            return;
-          }
-          if (t.dataset.tseats) {
-            const tb = T.find((x) => x.id == t.dataset.tseats),
-              v = prompt("Bu stolda nechta o'rindiq bor?", tb.seats || 4);
-            if (v === null) return;
-            const n = parseInt(v, 10);
-            if (!(n >= 1 && n <= 50)) {
-              toast("1 dan 50 gacha son kiriting");
-              return;
-            }
-            await post("/api/tables/" + tb.id, "PUT", { seats: n });
-            toast("Saqlandi");
-            return load();
-          }
-          if (t.id === "addt") return $("#dlgt").showModal();
-          if (t.dataset.tdel) {
-            if (confirm("Stolni o'chirasizmi?")) {
-              await post("/api/tables/" + t.dataset.tdel, "DELETE");
-              load();
-            }
-            return;
-          }
-          if (t.dataset.wst) {
-            const [id, st] = t.dataset.wst.split(":");
-            await post(`/api/waiters/${id}/status`, "POST", { status: st });
-            toast("Saqlandi");
-            return load();
-          }
-          if (t.dataset.eye) {
-            const id = +t.dataset.eye;
-            pwShown.has(id) ? pwShown.delete(id) : pwShown.add(id);
-            return zalTab();
-          }
-          if (t.dataset.wpw) {
-            const v = prompt(
-              "Yangi parolni yozing (kamida 6 ta belgi).\nBo'sh qoldirsangiz, tasodifiy parol yaratiladi:",
-              "",
-            );
-            if (v === null) return;
-            if (v.trim() && v.trim().length < 6) {
-              toast("Parol kamida 6 ta belgi bo'lsin");
-              return;
-            }
-            await post(`/api/waiters/${t.dataset.wpw}/password`, "POST", {
-              password: v.trim(),
-            });
-            pwShown.add(+t.dataset.wpw);
-            toast("Parol o'zgartirildi");
-            return load();
-          }
-          if (t.dataset.wdel) {
-            if (confirm("Ofitsantni o'chirasizmi?")) {
-              await post("/api/waiters/" + t.dataset.wdel, "DELETE");
-              toast("O'chirildi");
-              load();
-            }
-            return;
-          }
-        } catch (err) {
-          toast("Xatolik yuz berdi");
-        }
-      };
-      $("#tf").onsubmit = async (e) => {
-        e.preventDefault();
-        try {
-          await post("/api/tables", "POST", {
-            zal: $("#tz").value.trim(),
-            from: +$("#ta").value,
-            to: +$("#tb").value,
-            seats: +$("#ts").value,
-          });
-          $("#dlgt").close();
-          toast("Stollar qo'shildi");
-          load();
-        } catch (err) {
-          toast("Saqlab bo'lmadi");
-        }
-      };
-      $("#cancelt").onclick = () => $("#dlgt").close();
-      async function resizeImg(file) {
-        const bmp = await createImageBitmap(file),
-          k = Math.min(1, 720 / Math.max(bmp.width, bmp.height));
-        const c = document.createElement("canvas");
-        c.width = Math.round(bmp.width * k);
-        c.height = Math.round(bmp.height * k);
-        c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
-        return c.toDataURL("image/jpeg", 0.82);
-      }
-      $("#imgf").onchange = async (e) => {
-        const f = e.target.files[0];
-        e.target.value = "";
-        if (!f || !imgTarget) return;
-        try {
-          await post(`/api/menu/${imgTarget}/image`, "POST", {
-            image: await resizeImg(f),
-          });
-          toast("Rasm saqlandi");
-          load();
-        } catch (err) {
-          toast("Rasmni saqlab bo'lmadi");
-        }
-      };
-      const cpwShown = new Set();
-      const cpwCell = (c) =>
-        c.password
-          ? `<span class="pw">${cpwShown.has(c.id) ? esc(c.password) : "••••••••"}</span> <button class="eye" data-ceye="${c.id}" aria-label="Parolni ko'rsatish yoki yashirish">${cpwShown.has(c.id) ? "🙈" : "👁"}</button>`
-          : '<span class="muted">—</span>';
-      function couriersTab() {
-        $("#couriers").innerHTML =
-          `<div class="card"><div class="tablewrap"><table><tr><th>Dastavchik</th><th>Telefon</th><th>Mashina</th><th>Login</th><th>Parol</th><th>Ro'yxatdan o'tgan</th><th>Yetkazgan</th><th>Holat</th><th></th></tr>` +
-          (C.map(
-            (c) =>
-              `<tr><td><b>${esc(c.name)}</b></td><td>${esc(c.phone)}</td><td>${esc(c.car_model)}<br><b>${esc(c.car_number)}</b></td><td>${esc(c.login)}</td><td>${cpwCell(c)}</td><td>${ago(c.created)}</td><td><b>${c.delivered}</b> ta</td><td><span class="tag ${c.status === "approved" ? "s-done" : c.status === "pending" ? "s-new" : "s-cancelled"}">${WST[c.status]}</span></td><td><div class="act">${c.status !== "approved" ? `<button data-cst="${c.id}:approved">Tasdiqlash</button>` : `<button data-cst="${c.id}:blocked">Bloklash</button>`}<button data-cpw="${c.id}">Parolni o'zgartirish</button><button data-cdel="${c.id}">O'chirish</button></div></td></tr>`,
-          ).join("") ||
-            '<tr><td colspan="9" class="muted">Dastavchik yo\'q.</td></tr>') +
-          `</table></div></div><p class="muted">Dastavchiklar shu manzil orqali kiradi: <b>${esc(location.origin)}/courier</b></p>`;
-      }
-      $("#couriers").onclick = async (e) => {
-        const t = e.target.closest("button");
-        if (!t) return;
-        try {
-          if (t.dataset.ceye) {
-            const id = +t.dataset.ceye;
-            cpwShown.has(id) ? cpwShown.delete(id) : cpwShown.add(id);
-            return couriersTab();
-          }
-          if (t.dataset.cst) {
-            const [id, st] = t.dataset.cst.split(":");
-            await post(`/api/couriers/${id}/status`, "POST", { status: st });
-            toast("Saqlandi");
-            return load();
-          }
-          if (t.dataset.cpw) {
-            const v = prompt(
-              "Yangi parolni yozing (kamida 6 ta belgi).\nBo'sh qoldirsangiz, tasodifiy parol yaratiladi:",
-              "",
-            );
-            if (v === null) return;
-            if (v.trim() && v.trim().length < 6) {
-              toast("Parol kamida 6 ta belgi bo'lsin");
-              return;
-            }
-            await post(`/api/couriers/${t.dataset.cpw}/password`, "POST", {
-              password: v.trim(),
-            });
-            cpwShown.add(+t.dataset.cpw);
-            toast("Parol o'zgartirildi");
-            return load();
-          }
-          if (t.dataset.cdel) {
-            if (confirm("Dastavchini o'chirasizmi?")) {
-              await post("/api/couriers/" + t.dataset.cdel, "DELETE");
-              toast("O'chirildi");
-              load();
-            }
-            return;
-          }
-        } catch (err) {
-          toast("Xatolik yuz berdi");
-        }
-      };
-      function menuTab() {
-        const cats = [...new Set(M.map((m) => m.cat))];
-        $("#menu").innerHTML =
-          `<div class="chips"><button id="addm" class="on">+ Yangi mahsulot</button></div>` +
-          (cats
-            .map(
-              (c) =>
-                `<div class="card order"><h3>${esc(c)}</h3>` +
-                M.filter((m) => m.cat === c)
-                  .map(
-                    (m) =>
-                      `<div class="mrow${m.sold ? " sold" : ""}"><div class="mn">${m.img ? `<img class="th" alt="" src="/img/${m.id}?v=${m.img}">` : ""}<b>${esc(m.name)}</b>${m.desc ? ` <span class="muted">${esc(m.desc)}</span>` : ""}</div><div class="mp">${fmt(m.price)}</div><div class="act"><button data-img="${m.id}">📷 Rasm</button>${m.img ? `<button data-imgdel="${m.id}">Rasmni o'chirish</button>` : ""}<button data-edit="${m.id}">Tahrirlash</button><button data-sold="${m.id}">${m.sold ? "Qayta bor" : "Tugadi"}</button><button data-del="${m.id}">O'chirish</button></div></div>`,
-                  )
-                  .join("") +
-                `</div>`,
-            )
-            .join("") || '<p class="muted">Menyu bo\'sh.</p>');
-      }
-      function openM(m) {
-        editId = m ? m.id : null;
-        $("#dt").textContent = m ? "Mahsulotni tahrirlash" : "Yangi mahsulot";
-        $("#fc").value = m ? m.cat : "";
-        $("#fn").value = m ? m.name : "";
-        $("#fd").value = m ? m.desc : "";
-        $("#fp").value = m ? m.price : "";
-        $("#dc").innerHTML = [...new Set(M.map((x) => x.cat))]
-          .map((c) => `<option value="${esc(c)}">`)
-          .join("");
-        $("#dlg").showModal();
-      }
-      $("#menu").onclick = async (e) => {
-        const t = e.target.closest("button");
-        if (!t) return;
-        try {
-          if (t.id === "addm") return openM();
-          if (t.dataset.img) {
-            imgTarget = t.dataset.img;
-            return $("#imgf").click();
-          }
-          if (t.dataset.imgdel) {
-            await post("/api/menu/" + t.dataset.imgdel + "/image", "DELETE");
-            toast("Rasm o'chirildi");
-            return load();
-          }
-          if (t.dataset.edit)
-            return openM(M.find((m) => m.id === t.dataset.edit));
-          if (t.dataset.del) {
-            if (confirm("Mahsulotni menyudan o'chirasizmi?")) {
-              await post("/api/menu/" + t.dataset.del, "DELETE");
-              toast("O'chirildi");
-              load();
-            }
-            return;
-          }
-          if (t.dataset.sold) {
-            const m = M.find((x) => x.id === t.dataset.sold),
-              ns = !m.sold;
-            const notify = confirm(
-              (ns
-                ? "Mijozlarga botda «tugadi» deb xabar yuborilsinmi?"
-                : "Mijozlarga «yana bor» deb xabar yuborilsinmi?") +
-                "\n\nOK — yuborish, Bekor — xabarsiz saqlash",
-            );
-            const r = await post(`/api/menu/${m.id}/sold`, "POST", {
-              sold: ns,
-              notify,
-            });
-            toast(
-              notify ? `Xabar ${r.sent} ta mijozga yuborilmoqda` : "Saqlandi",
-            );
-            load();
-          }
-        } catch (err) {
-          toast("Xatolik yuz berdi");
-        }
-      };
-      $("#mf").onsubmit = async (e) => {
-        e.preventDefault();
-        const b = {
-          cat: $("#fc").value.trim(),
-          name: $("#fn").value.trim(),
-          desc: $("#fd").value.trim(),
-          price: +$("#fp").value,
-        };
-        try {
-          await post(
-            editId ? "/api/menu/" + editId : "/api/menu",
-            editId ? "PUT" : "POST",
-            b,
-          );
-          $("#dlg").close();
-          toast("Menyu yangilandi");
-          load();
-        } catch (err) {
-          toast("Saqlab bo'lmadi");
-        }
-      };
-      $("#cancelm").onclick = () => $("#dlg").close();
-      // ---- yon menyu ----
-      const wide = () => matchMedia("(min-width:900px)").matches;
-      function setSide(open, save) {
-        document.body.classList.toggle("side-open", open);
-        $("#burger").setAttribute("aria-expanded", open);
-        if (save && wide()) {
-          try {
-            localStorage.setItem("side", open ? "1" : "0");
-          } catch (e) {}
-        }
-      }
-      let sideSaved = null;
-      try {
-        sideSaved = localStorage.getItem("side");
-      } catch (e) {}
-      setSide(wide() && sideSaved !== "0");
-      $("#burger").onclick = () =>
-        setSide(!document.body.classList.contains("side-open"), true);
-      $("#scrim").onclick = () => setSide(false);
-      addEventListener("keydown", (e) => {
-        if (e.key === "Escape" && !wide()) setSide(false);
-      });
-      // ---- mavzu ----
-      function applyTheme(t, save) {
-        if (t === "light" || t === "dark")
-          document.documentElement.dataset.theme = t;
-        else delete document.documentElement.dataset.theme;
-        [...$("#theme").children].forEach((b) =>
-          b.classList.toggle("on", b.dataset.th === (t || "auto")),
-        );
-        if (save) {
-          try {
-            localStorage.setItem("theme", t);
-          } catch (e) {}
-        }
-      }
-      let savedTheme = "auto";
-      try {
-        savedTheme = localStorage.getItem("theme") || "auto";
-      } catch (e) {}
-      applyTheme(savedTheme);
-      $("#theme").onclick = (e) => {
-        const b = e.target.closest("button");
-        if (b) applyTheme(b.dataset.th, true);
-      };
-      // ---- kirish / chiqish ----
-      $("#lf").onsubmit = async (e) => {
-        e.preventDefault();
-        $("#lerr").textContent = "";
-        try {
-          const r = await fetch("/api/admin/login", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ password: $("#lp").value }),
-          });
-          const d = await r.json().catch(() => ({}));
-          if (!r.ok) {
-            $("#lerr").textContent = d.error || "Xatolik yuz berdi.";
-            return;
-          }
-          $("#login").hidden = true;
-          authed = true;
-          load();
-        } catch (err) {
-          $("#lerr").textContent = "Server bilan aloqa yo'q.";
-        }
-      };
-      $("#logout").onclick = async () => {
-        try {
-          await fetch("/api/admin/logout", {
-            method: "POST",
-            headers: { "X-Admin": "1" },
-          });
-        } catch (e) {}
-        showLogin();
-      };
-      load();
-      setInterval(load, 15000);
-    </script>
-  </body>
-</html> -->
-
 <!doctype html>
 <html lang="uz">
   <head>
@@ -2009,6 +224,16 @@
         font-weight: 800;
         letter-spacing: -0.02em;
       }
+      .pill {
+        margin-left: auto;
+        background: var(--card);
+        color: var(--ink);
+        border: 2px solid var(--ink);
+        border-radius: 99px;
+        padding: 4px 12px;
+        font-weight: 800;
+        font-size: 14px;
+      }
       #burger {
         border: 2px solid var(--ink);
         background: var(--card);
@@ -2485,6 +710,7 @@
             <i>🚗</i><span>Dastavchiklar</span
             ><span class="badge" id="cb" hidden>0</span>
           </button>
+          <button data-t="shop"><i>⏰</i><span>Ish vaqti</span></button>
         </nav>
         <div class="sidefoot">
           <div class="theme" id="theme" role="group" aria-label="Mavzu">
@@ -2524,6 +750,7 @@
             ☰
           </button>
           <h1 id="ptitle">Statistika</h1>
+          <span class="pill" id="shopchip"></span>
         </header>
         <main>
           <section id="dash"></section>
@@ -2533,6 +760,7 @@
           <section id="zones" hidden></section>
           <section id="zal" hidden></section>
           <section id="couriers" hidden></section>
+          <section id="shop" hidden></section>
         </main>
       </div>
     </div>
@@ -2695,6 +923,7 @@
         T = [],
         ZO = [],
         C = [],
+        SH = null,
         zsub = "orders",
         imgTarget = null,
         filter = "active",
@@ -2848,7 +1077,7 @@
       async function load() {
         if (!authed) return;
         try {
-          [S, U, O, M, Z, W, T, ZO, C] = await Promise.all([
+          [S, U, O, M, Z, W, T, ZO, C, SH] = await Promise.all([
             api("/api/stats"),
             api("/api/users"),
             api("/api/orders"),
@@ -2858,6 +1087,7 @@
             api("/api/tables"),
             api("/api/zal/orders"),
             api("/api/couriers"),
+            api("/api/shop"),
           ]);
         } catch (e) {
           if (e.message !== "login") toast("Ma'lumot olinmadi");
@@ -2866,6 +1096,8 @@
         const b = $("#newb");
         b.hidden = !S.new;
         b.textContent = S.new;
+        const chip = $("#shopchip");
+        chip.textContent = SH.status.open ? "🟢 Ochiq" : "🔴 Yopiq";
         const zb = $("#zalb");
         zb.hidden = !S.zal_new;
         zb.textContent = S.zal_new;
@@ -2882,7 +1114,9 @@
           if (document.activeElement.id !== "zq") zonesTab();
         } else if (tab === "zal") zalTab();
         else if (tab === "couriers") couriersTab();
-        else if (document.activeElement.id !== "qs") users();
+        else if (tab === "shop") {
+          if (!$("#shop").contains(document.activeElement)) shopTab();
+        } else if (document.activeElement.id !== "qs") users();
       }
       $("#nav").onclick = (e) => {
         const b = e.target.closest("button");
@@ -2893,9 +1127,16 @@
         [...$("#nav").children].forEach((x) =>
           x.classList.toggle("on", x === b),
         );
-        ["dash", "orders", "users", "menu", "zones", "zal", "couriers"].forEach(
-          (t) => ($("#" + t).hidden = t !== tab),
-        );
+        [
+          "dash",
+          "orders",
+          "users",
+          "menu",
+          "zones",
+          "zal",
+          "couriers",
+          "shop",
+        ].forEach((t) => ($("#" + t).hidden = t !== tab));
         load();
       };
       $("#orders").onclick = async (e) => {
@@ -3423,6 +1664,111 @@
               toast("O'chirildi");
               load();
             }
+            return;
+          }
+        } catch (err) {
+          toast("Xatolik yuz berdi");
+        }
+      };
+      let shopMode = null;
+      const TPL = {
+        dam: "Hurmatli mijozlar! Bugun dam olish kuni, buyurtma qabul qilinmaydi. Ertaga soat 18:00 dan ishlaymiz. Tushunganingiz uchun rahmat! 🌭",
+        kech: "Hurmatli mijozlar! Bugun ish vaqtimiz kechroq boshlanadi: soat __:__ dan buyurtma qabul qilamiz. Noqulaylik uchun uzr!",
+        erta: "Hurmatli mijozlar! Bugun ish vaqtimiz erta tugaydi: soat __:__ dan keyin buyurtma qabul qilinmaydi. Tushunganingiz uchun rahmat!",
+        ochiq:
+          "Hurmatli mijozlar! Biz ishlayapmiz, buyurtma berishingiz mumkin! 🌭",
+      };
+      function shopTab() {
+        const s = SH.settings,
+          st = SH.status;
+        if (shopMode === null) shopMode = st.mode;
+        const why =
+          st.mode === "open"
+            ? "Qo'lda majburan ochiq"
+            : st.mode === "closed"
+              ? "Qo'lda majburan yopiq"
+              : st.in_hours
+                ? "Ish vaqti ichida"
+                : "Ish vaqtidan tashqarida";
+        const MODES = [
+          ["auto", "Avtomatik (jadval bo'yicha)"],
+          ["open", "Hozir ochiq (majburan)"],
+          ["closed", "Hozir yopiq (majburan)"],
+        ];
+        $("#shop").innerHTML =
+          `<div class="card" style="margin-bottom:14px"><div class="oh"><b style="font-size:22px">${st.open ? "🟢 Hozir OCHIQ" : "🔴 Hozir YOPIQ"}</b><span class="muted">${esc(why)}${st.until && st.mode !== "auto" ? " · " + esc(st.until.slice(0, 16)) + " gacha" : ""}</span></div>
+    <p class="muted" style="margin:0">Mijozlar botdan faqat ochiq vaqtda buyurtma bera oladi. Ish vaqti: <b>${esc(st.hours)}</b> (Toshkent vaqti)</p></div>
+  <div class="card" style="margin-bottom:14px"><h3>Ish vaqti</h3>
+    <div class="act"><label>Ochilish<br><input type="time" id="so" value="${esc(s.open_time)}"></label><label>Yopilish<br><input type="time" id="sc" value="${esc(s.close_time)}"></label></div>
+    <p class="muted">Yopilish vaqti ochilishdan oldin bo'lsa, ish vaqti yarim tundan o'tadi (masalan, 18:00 dan 02:00 gacha).</p>
+    <div class="act"><button id="saveHours">Saqlash</button></div></div>
+  <div class="card" style="margin-bottom:14px"><h3>Qo'lda boshqarish</h3>
+    <div class="chips">${MODES.map(([k, l]) => `<button data-mode="${k}" class="${shopMode === k ? "on" : ""}">${l}</button>`).join("")}</div>
+    <div class="shopform" ${shopMode === "auto" ? "hidden" : ""}>
+      <label>Qachongacha (ixtiyoriy, shu vaqtdan keyin jadvalga qaytadi)<br><input type="datetime-local" id="suntil" value="${esc((s.until || "").slice(0, 16).replace(" ", "T"))}"></label>
+      <label>Mijozlarga ko'rsatiladigan izoh (yopiq bo'lganda)<br><textarea id="snote" rows="2" maxlength="300" placeholder="Masalan: Bugun dam olish kuni. Ertaga 18:00 dan ishlaymiz.">${esc(s.note)}</textarea></label></div>
+    <div class="act" style="margin-top:10px"><button id="saveMode">Saqlash</button></div></div>
+  <div class="card"><h3>Hamma mijozlarga xabar yuborish</h3>
+    <p class="muted" style="margin:0 0 8px">Xabar botda ro'yxatdan o'tgan barcha mijozlarga (${U.length} ta) yuboriladi.</p>
+    <div class="chips"><button data-tpl="dam">Dam olish</button><button data-tpl="kech">Kech ochiladi</button><button data-tpl="erta">Erta yopiladi</button><button data-tpl="ochiq">Ishlayapmiz</button></div>
+    <textarea id="bt" rows="5" maxlength="1500" placeholder="Xabar matnini yozing yoki yuqoridagi namunalardan birini tanlang"></textarea>
+    <div class="act" style="margin-top:10px"><button id="sendBc">📣 Hammaga yuborish</button></div></div>`;
+      }
+      $("#shop").onclick = async (e) => {
+        const t = e.target.closest("button");
+        if (!t) return;
+        try {
+          if (t.dataset.mode) {
+            shopMode = t.dataset.mode;
+            const keep = ($("#bt") || {}).value || "";
+            shopTab();
+            $("#bt").value = keep;
+            return;
+          }
+          if (t.dataset.tpl) {
+            $("#bt").value = TPL[t.dataset.tpl];
+            $("#bt").focus();
+            return;
+          }
+          if (t.id === "saveHours") {
+            SH = await post("/api/shop", "POST", {
+              open_time: $("#so").value,
+              close_time: $("#sc").value,
+            });
+            toast("Ish vaqti saqlandi");
+            shopTab();
+            return load();
+          }
+          if (t.id === "saveMode") {
+            SH = await post("/api/shop", "POST", {
+              mode: shopMode,
+              until: shopMode === "auto" ? "" : $("#suntil").value,
+              note: shopMode === "auto" ? "" : $("#snote").value,
+            });
+            shopMode = null;
+            toast("Saqlandi");
+            shopTab();
+            return load();
+          }
+          if (t.id === "sendBc") {
+            const text = $("#bt").value.trim();
+            if (text.length < 5) {
+              toast("Xabar matnini yozing");
+              return;
+            }
+            if (/__:__/.test(text)) {
+              toast("Xabardagi __:__ o'rniga vaqtni yozing");
+              return;
+            }
+            if (
+              !confirm(
+                `Quyidagi xabar ${U.length} ta mijozga yuboriladi:\n\n${text}\n\nDavom etasizmi?`,
+              )
+            )
+              return;
+            const r = await post("/api/broadcast", "POST", { text });
+            $("#bt").value = "";
+            toast(`Xabar ${r.sent} ta mijozga yuborilmoqda`);
             return;
           }
         } catch (err) {
