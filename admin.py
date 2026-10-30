@@ -1,3 +1,556 @@
+# """
+# Admin panel (veb-sayt) + menyu API. bot.py bilan bir jarayonda ishlaydi va users.db dan o'qiydi.
+
+# Muhit o'zgaruvchilari:
+#   ADMIN_PASSWORD  - panel paroli (majburiy; bo'lmasa panel o'chiq turadi)
+#   ADMIN_PORT      - port (standart 8080)
+#   ADMIN_HOST      - manzil (standart 127.0.0.1, ya'ni faqat shu kompyuterdan)
+# """
+# import asyncio
+# import base64
+# import hmac
+# import json
+# import os
+# import secrets
+# import time
+# import uuid
+# from datetime import datetime, timedelta, timezone
+
+# from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+# import courier
+# import zal
+# from aiohttp import web
+
+# BASE = os.path.dirname(os.path.abspath(__file__))
+# HTML_PATH = os.path.join(BASE, "admin.html")
+
+# STATUS_MSG = {
+#     "cooking": "👨‍🍳 buyurtmangiz tayyorlanmoqda.",
+#     "delivering": "🛵 buyurtmangiz yo'lda!",
+#     "done": "✅ buyurtmangiz yetkazildi. Yoqimli ishtaha! 🌭",
+#     "cancelled": "❌ buyurtmangiz bekor qilindi. Savollar bo'lsa, operator bilan bog'laning.",
+#     "completed": "🎉 buyurtmangiz yakunlandi. Rahmat!",
+# }
+# # Holatlar faqat oldinga yuradi; orqaga qaytib bo'lmaydi.
+# FLOW = {
+#     "new": ["cooking", "cancelled"],
+#     "cooking": ["delivering", "cancelled"],
+#     "delivering": ["done", "cancelled"],
+#     "done": ["completed"],
+#     "completed": [],
+#     "cancelled": [],
+# }
+
+# DEFAULT_MENU = [
+#     ("s2", "Sosiskali", "2x sosiska", "Faqat sosiska va chimchi", 18000),
+#     ("s3", "Sosiskali", "3x sosiska", "Faqat sosiska va chimchi", 22000),
+#     ("s4", "Sosiskali", "4x sosiska", "Faqat sosiska va chimchi", 25000),
+#     ("s5", "Sosiskali", "5x sosiska", "Faqat sosiska va chimchi", 28000),
+#     ("i1", "Ijjonli", "2x sosiska + ijjon", "", 28000),
+#     ("i2", "Ijjonli", "2x sosiska + 2x ijjon", "", 35000),
+#     ("i3", "Ijjonli", "3x sosiska + ijjon", "", 35000),
+#     ("i4", "Ijjonli", "3x sosiska + 2x ijjon", "", 40000),
+#     ("i5", "Ijjonli", "2x sosiska + ijjon + sir", "", 35000),
+#     ("c1", "Cheezdog", "Cheezdog (standart)", "", 35000),
+#     ("c2", "Cheezdog", "Cheezdog (katta)", "", 40000),
+#     ("t2", "Tushonkali", "Tushonkali 2x sosiska", "", 35000),
+#     ("t3", "Tushonkali", "Tushonkali 3x sosiska", "", 40000),
+#     ("tk1", "Toshkent xot dog", "Toshkent xot dog (standart)", "Go'sht assorti", 30000),
+#     ("tk2", "Toshkent xot dog", "Toshkent xot dog (katta)", "Go'sht assorti", 35000),
+#     ("m1", "Mangalga xot dog", "Mangalga xot dog sirniy katlet", "", 45000),
+#     ("m2", "Mangalga xot dog", "Mangalga xot dog shashlikli", "", 35000),
+#     ("d1", "Ichimliklar", "Cola 0.5 l", "", 8000),
+#     ("d2", "Ichimliklar", "Fanta 0.5 l", "", 8000),
+#     ("d3", "Ichimliklar", "Sprite 0.5 l", "", 8000),
+#     ("d4", "Ichimliklar", "Cola 1.5 l", "", 14000),
+#     ("d5", "Ichimliklar", "Suv 0.5 l", "", 4000),
+# ]
+
+
+# DEFAULT_ZONES = [
+#     ("z1", "Yaqin hududlar", 10000, 0),
+#     ("z2", "O'rta masofa", 15000, 0),
+#     ("z3", "Uzoq hududlar", 20000, 0),
+#     ("z0", "Olib ketaman", 0, 1),
+# ]
+
+
+# TZ = timezone(timedelta(hours=5))  # O'zbekiston: UTC+5, yozgi vaqt yo'q
+
+
+# def tashkent_now():
+#     """Server qaysi vaqt mintaqasida bo'lmasin (Render UTC), Toshkent vaqtini qaytaradi."""
+#     return datetime.now(TZ).replace(tzinfo=None)
+
+
+# DEFAULT_SHOP = {"open_time": "18:00", "close_time": "02:00", "mode": "auto", "until": "", "note": ""}
+
+
+# def get_setting(db, key):
+#     r = db.execute("SELECT value FROM settings WHERE key=?", (key,)).fetchone()
+#     return r[0] if r else DEFAULT_SHOP.get(key, "")
+
+
+# def set_setting(db, key, value):
+#     db.execute("INSERT INTO settings(key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+#                (key, value))
+#     db.commit()
+
+
+# def shop_status(db):
+#     """Botdan buyurtma qabul qilish ochiqmi? (Toshkent vaqti; ish vaqti yarim tundan o'tishi mumkin: 18:00–02:00)."""
+#     s = {k: get_setting(db, k) for k in DEFAULT_SHOP}
+#     now = tashkent_now()
+#     mode = s["mode"] if s["mode"] in ("auto", "open", "closed") else "auto"
+#     if mode != "auto" and s["until"] and now.strftime("%Y-%m-%d %H:%M:%S") >= s["until"]:
+#         mode = "auto"  # qo'lda boshqarish muddati tugadi: jadvalga qaytadi
+#         set_setting(db, "mode", "auto")
+#         set_setting(db, "until", "")
+#         set_setting(db, "note", "")
+#         s["until"], s["note"] = "", ""
+#     hhmm, o, c = now.strftime("%H:%M"), s["open_time"], s["close_time"]
+#     in_hours = True if o == c else (o <= hhmm < c if o < c else (hhmm >= o or hhmm < c))
+#     is_open = True if mode == "open" else False if mode == "closed" else in_hours
+#     return {"open": is_open, "mode": mode, "in_hours": in_hours, "open_time": o, "close_time": c,
+#             "hours": f"{o}–{c}", "until": s["until"], "note": s["note"] if mode != "auto" else ""}
+
+
+# def closed_message(st):
+#     msg = f"⏰ Hozir buyurtma qabul qilinmaydi.\nIsh vaqti: {st['hours']}."
+#     if st.get("note"):
+#         msg += f"\n{st['note']}"
+#     return msg
+
+
+# def init_zones(db):
+#     db.execute("CREATE TABLE IF NOT EXISTS zones(id TEXT PRIMARY KEY, name TEXT, fee INTEGER, pickup INTEGER DEFAULT 0, pos INTEGER)")
+#     if not db.execute("SELECT 1 FROM zones LIMIT 1").fetchone():
+#         zones = DEFAULT_ZONES
+#         seed = os.path.join(BASE, "seed_zones.txt")  # export_data.py yaratadi: har qatorda "Nomi - narxi"
+#         if os.path.exists(seed):
+#             zones = [("z0", "Olib ketaman", 0, 1)]
+#             for i, line in enumerate(open(seed, encoding="utf-8")):
+#                 name, sep, fee = line.strip().rpartition(" - ")
+#                 if sep and fee.strip().isdigit():
+#                     zones.append((f"s{i}", name.strip(), int(fee), 0))
+#         db.executemany("INSERT INTO zones VALUES (?,?,?,?,?)", [(*z, i) for i, z in enumerate(zones)])
+#     db.commit()
+
+
+# def get_zones(db):
+#     cur = db.execute("SELECT id, name, fee, pickup FROM zones ORDER BY pos, rowid")
+#     return [{"id": r[0], "name": r[1], "fee": r[2], "pickup": bool(r[3])} for r in cur.fetchall()]
+
+
+# def init_settings(db):
+#     db.execute("CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT)")
+#     db.commit()
+
+
+# def init_menu(db):
+#     db.execute("CREATE TABLE IF NOT EXISTS menu(id TEXT PRIMARY KEY, cat TEXT, name TEXT, descr TEXT, "
+#                "price INTEGER, sold INTEGER DEFAULT 0, pos INTEGER)")
+#     db.execute("CREATE TABLE IF NOT EXISTS menu_images(id TEXT PRIMARY KEY, mime TEXT, data BLOB, updated INTEGER)")
+#     if not db.execute("SELECT 1 FROM menu LIMIT 1").fetchone():
+#         seed = os.path.join(BASE, "seed_menu.json")  # export_data.py yaratadi
+#         if os.path.exists(seed):
+#             items = json.load(open(seed, encoding="utf-8"))
+#             db.executemany("INSERT INTO menu VALUES (?,?,?,?,?,?,?)",
+#                            [(m["id"], m["cat"], m["name"], m["desc"], m["price"], int(m.get("sold", 0)), i)
+#                             for i, m in enumerate(items)])
+#         else:
+#             db.executemany("INSERT INTO menu VALUES (?,?,?,?,?,0,?)", [(*m, i) for i, m in enumerate(DEFAULT_MENU)])
+#     db.commit()
+
+
+# def get_menu(db):
+#     cur = db.execute("SELECT m.id, m.cat, m.name, m.descr, m.price, m.sold, COALESCE(i.updated, 0) "
+#                      "FROM menu m LEFT JOIN menu_images i ON i.id = m.id ORDER BY m.pos, m.rowid")
+#     return [{"id": r[0], "cat": r[1], "name": r[2], "desc": r[3], "price": r[4], "sold": bool(r[5]), "img": r[6]}
+#             for r in cur.fetchall()]
+
+
+# def rating_kb(oid):
+#     return InlineKeyboardMarkup(inline_keyboard=[[
+#         InlineKeyboardButton(text=f"{n}⭐", callback_data=f"rate:{oid}:{n}") for n in range(1, 6)]])
+
+
+# def queue_ahead(db, oid):
+#     """Shu buyurtmadan oldin hali tayyorlanmagan (yangi yoki tayyorlanayotgan) buyurtmalar soni."""
+#     return db.execute("SELECT COUNT(*) FROM orders WHERE status IN ('new', 'cooking') AND id < ?", (oid,)).fetchone()[0]
+
+
+# async def notify_queue(db, bot):
+#     """Navbati o'zgargan mijozlarga yangi o'rnini yuboradi."""
+#     for oid, uid, last in db.execute("SELECT id, uid, ahead FROM orders WHERE status='new' ORDER BY id").fetchall():
+#         n = queue_ahead(db, oid)
+#         if n == last:
+#             continue
+#         db.execute("UPDATE orders SET ahead=? WHERE id=?", (n, oid))
+#         db.commit()
+#         if last is None:
+#             continue
+#         text = ("🎉 Sizning navbatingiz keldi! Buyurtmangiz tayyorlanmoqda." if n == 0
+#                 else f"⏳ Buyurtma #{oid}: sizdan oldin {n} ta buyurtma qoldi.")
+#         try:
+#             await bot.send_message(uid, text)
+#         except Exception:
+#             pass
+
+
+# def make_app(db, bot, password, kb_for):
+#     tasks = set()
+#     admin_fails = {}
+#     SESSION = 7 * 24 * 3600
+#     db.execute("CREATE TABLE IF NOT EXISTS admin_sessions(token TEXT PRIMARY KEY, created INTEGER)")
+#     db.commit()
+
+#     def rows(sql, args=()):
+#         cur = db.execute(sql, args)
+#         cols = [c[0] for c in cur.description]
+#         return [dict(zip(cols, r)) for r in cur.fetchall()]
+
+#     def guard(request):
+#         if request.headers.get("X-Admin") != "1":
+#             raise web.HTTPForbidden()
+
+#     def valid_session(request):
+#         tok = request.cookies.get("adm", "")
+#         r = db.execute("SELECT created FROM admin_sessions WHERE token=?", (tok,)).fetchone() if tok else None
+#         return bool(r) and time.time() - r[0] < SESSION
+
+#     @web.middleware
+#     async def auth(request, handler):
+#         if (request.method == "GET" and request.path in ("/api/menu", "/api/zones", "/api/status")) or request.path in ("/waiter", "/courier") \
+#                 or request.path.startswith(("/api/w/", "/api/c/", "/img/")) \
+#                 or request.path in ("/", "/api/admin/login", "/api/admin/logout"):
+#             return await handler(request)  # ochiq yo'llar (maxfiy ma'lumot yo'q)
+#         if not valid_session(request):
+#             return web.json_response({"error": "login"}, status=401)
+#         return await handler(request)
+
+#     async def admin_login(request):
+#         ip = request.headers.get("X-Forwarded-For", request.remote or "").split(",")[0].strip()
+#         recent = [t for t in admin_fails.get(ip, []) if time.time() - t < 600]
+#         if len(recent) >= 5:
+#             return web.json_response({"error": "Juda ko'p urinish. 10 daqiqadan keyin qayta urinib ko'ring."}, status=429)
+#         try:
+#             pw = str((await request.json()).get("password", ""))
+#         except Exception:
+#             pw = ""
+#         if not hmac.compare_digest(pw.encode(), password.encode()):
+#             admin_fails[ip] = recent + [time.time()]
+#             return web.json_response({"error": "Parol noto'g'ri."}, status=401)
+#         admin_fails.pop(ip, None)
+#         token = secrets.token_urlsafe(32)
+#         db.execute("DELETE FROM admin_sessions WHERE created < ?", (int(time.time()) - SESSION,))
+#         db.execute("INSERT INTO admin_sessions VALUES (?,?)", (token, int(time.time())))
+#         db.commit()
+#         resp = web.json_response({"ok": True})
+#         resp.set_cookie("adm", token, max_age=SESSION, httponly=True, samesite="Strict", path="/",
+#                         secure=request.secure or request.headers.get("X-Forwarded-Proto") == "https")
+#         return resp
+
+#     async def admin_logout(request):
+#         guard(request)
+#         db.execute("DELETE FROM admin_sessions WHERE token=?", (request.cookies.get("adm", ""),))
+#         db.commit()
+#         resp = web.json_response({"ok": True})
+#         resp.del_cookie("adm", path="/")
+#         return resp
+
+#     async def index(request):
+#         return web.FileResponse(HTML_PATH)
+
+#     async def stats(request):
+#         orders = rows("SELECT created, items, total, pay FROM orders WHERE status != 'cancelled'")
+#         orders += rows("SELECT created, items, total, 'cash' AS pay FROM zal_orders")
+#         now = tashkent_now()
+#         today = now.strftime("%Y-%m-%d")
+#         daily = {(now - timedelta(days=i)).strftime("%Y-%m-%d"): [0, 0] for i in range(13, -1, -1)}
+#         hours, prods, pay = [0] * 24, {}, {"cash": 0, "card": 0}
+#         revenue = t_orders = t_revenue = 0
+#         for o in orders:
+#             day = o["created"][:10]
+#             revenue += o["total"]
+#             if day == today:
+#                 t_orders += 1
+#                 t_revenue += o["total"]
+#             if day in daily:
+#                 daily[day][0] += 1
+#                 daily[day][1] += o["total"]
+#             hours[int(o["created"][11:13])] += 1
+#             pay["card" if o["pay"] == "card" else "cash"] += 1
+#             for it in json.loads(o["items"]):
+#                 p = prods.setdefault(it["name"], {"name": it["name"], "qty": 0, "revenue": 0})
+#                 p["qty"] += it["qty"]
+#                 p["revenue"] += it["qty"] * it["price"]
+#         n = len(orders)
+#         rc, ra = db.execute("SELECT COUNT(rating), AVG(rating) FROM orders WHERE rating IS NOT NULL").fetchone()
+#         return web.json_response({
+#             "orders": n, "revenue": revenue, "avg": round(revenue / n) if n else 0,
+#             "users": db.execute("SELECT COUNT(*) FROM users").fetchone()[0],
+#             "new": db.execute("SELECT COUNT(*) FROM orders WHERE status='new'").fetchone()[0],
+#             "zal_new": db.execute("SELECT COUNT(*) FROM zal_orders WHERE status='open' AND printed=0").fetchone()[0],
+#             "today_orders": t_orders, "today_revenue": t_revenue,
+#             "rating_count": rc, "rating_avg": round(ra, 1) if ra else 0,
+#             "delivery_revenue": db.execute("SELECT COALESCE(SUM(delivery), 0) FROM orders WHERE status != 'cancelled'").fetchone()[0],
+#             "daily": [{"d": d, "orders": v[0], "revenue": v[1]} for d, v in daily.items()],
+#             "hours": hours, "pay": pay,
+#             "products": sorted(prods.values(), key=lambda x: -x["qty"]),
+#         })
+
+#     async def users(request):
+#         return web.json_response(rows(
+#             "SELECT u.id, u.name, u.phone, u.address, COUNT(o.id) AS orders, "
+#             "COALESCE(SUM(o.total), 0) AS spent, u.registered AS registered "
+#             "FROM users u LEFT JOIN orders o ON o.uid = u.id AND o.status != 'cancelled' "
+#             "GROUP BY u.id ORDER BY orders DESC, spent DESC"))
+
+#     async def orders(request):
+#         data = rows(
+#             "SELECT o.id, o.created, o.items, o.total, o.pay, o.address, o.comment, o.status, o.rating, o.zone, o.delivery, "
+#             "u.name, u.phone, c.name AS courier, c.phone AS courier_phone, "
+#             "TRIM(COALESCE(c.car_model,'') || ' ' || COALESCE(c.car_number,'')) AS car "
+#             "FROM orders o LEFT JOIN users u ON u.id = o.uid LEFT JOIN couriers c ON c.id = o.courier_id "
+#             "ORDER BY o.id DESC LIMIT 200")
+#         for o in data:
+#             o["items"] = json.loads(o["items"])
+#         return web.json_response(data)
+
+#     async def change(oid, status):
+#         """Buyurtma holatini o'zgartiradi, mijozga xabar yuboradi (admin ham, dastavchik ham shuni ishlatadi)."""
+#         row = db.execute("SELECT uid, status FROM orders WHERE id=?", (oid,)).fetchone()
+#         if not row:
+#             raise ValueError("Buyurtma topilmadi")
+#         if status not in FLOW.get(row[1], []):
+#             raise ValueError("Bu holatga o'tib bo'lmaydi")
+#         uid = row[0]
+#         db.execute("UPDATE orders SET status=? WHERE id=?", (status, oid))
+#         if status in ("done", "completed", "cancelled"):
+#             db.execute("DELETE FROM pending WHERE uid=?", (uid,))
+#         db.commit()
+#         extra = ""
+#         if status == "delivering":
+#             c = db.execute("SELECT c.name, c.phone, c.car_model, c.car_number FROM orders o "
+#                            "JOIN couriers c ON c.id = o.courier_id WHERE o.id=?", (oid,)).fetchone()
+#             if c:
+#                 extra = f"\nDastavchik: {c[0]}, {c[1]}\nMashina: {c[2]} {c[3]}"
+#         notified = False
+#         try:
+#             await bot.send_message(uid, f"Buyurtma #{oid}: {STATUS_MSG[status]}{extra}", reply_markup=kb_for(uid))
+#             notified = True
+#             if status == "done":
+#                 kb = InlineKeyboardMarkup(inline_keyboard=[[
+#                     InlineKeyboardButton(text="✅ Qabul qildim", callback_data=f"recv:{oid}")]])
+#                 await bot.send_message(uid, "Buyurtmani qabul qilgach, quyidagi tugmani bosing:", reply_markup=kb)
+#             elif status == "completed":
+#                 await bot.send_message(uid, "Xizmatimizni baholang, fikringiz biz uchun muhim:",
+#                                        reply_markup=rating_kb(oid))
+#         except Exception:
+#             pass
+#         await notify_queue(db, bot)
+#         return notified
+
+#     async def set_status(request):
+#         guard(request)
+#         oid = int(request.match_info["id"])
+#         status = (await request.json()).get("status")
+#         try:
+#             notified = await change(oid, status)
+#         except ValueError as e:
+#             if "topilmadi" in str(e):
+#                 raise web.HTTPNotFound()
+#             raise web.HTTPConflict(text=str(e))
+#         return web.json_response({"ok": True, "notified": notified})
+
+#     # ---- Menyu ----
+#     async def menu_list(request):
+#         return web.json_response(get_menu(db), headers={"Access-Control-Allow-Origin": "*",
+#                                                         "Cache-Control": "no-store"})
+
+#     async def read_item(request):
+#         d = await request.json()
+#         cat, name = str(d.get("cat", "")).strip()[:40], str(d.get("name", "")).strip()[:80]
+#         desc = str(d.get("desc", "")).strip()[:120]
+#         try:
+#             price = int(d.get("price"))
+#         except (TypeError, ValueError):
+#             price = 0
+#         if not cat or not name or price <= 0:
+#             raise web.HTTPBadRequest(text="Bo'lim, nom va narx kerak")
+#         return cat, name, desc, price
+
+#     async def menu_create(request):
+#         guard(request)
+#         cat, name, desc, price = await read_item(request)
+#         pos = (db.execute("SELECT MAX(pos) FROM menu").fetchone()[0] or 0) + 1
+#         db.execute("INSERT INTO menu VALUES (?,?,?,?,?,0,?)", (uuid.uuid4().hex[:8], cat, name, desc, price, pos))
+#         db.commit()
+#         return web.json_response({"ok": True})
+
+#     async def menu_update(request):
+#         guard(request)
+#         cat, name, desc, price = await read_item(request)
+#         db.execute("UPDATE menu SET cat=?, name=?, descr=?, price=? WHERE id=?",
+#                    (cat, name, desc, price, request.match_info["id"]))
+#         db.commit()
+#         return web.json_response({"ok": True})
+
+#     async def menu_delete(request):
+#         guard(request)
+#         db.execute("DELETE FROM menu WHERE id=?", (request.match_info["id"],))
+#         db.commit()
+#         return web.json_response({"ok": True})
+
+#     async def zones_list(request):
+#         return web.json_response(get_zones(db), headers={"Access-Control-Allow-Origin": "*",
+#                                                          "Cache-Control": "no-store"})
+
+#     async def read_zone(request):
+#         d = await request.json()
+#         name = str(d.get("name", "")).strip()[:60]
+#         try:
+#             fee = int(d.get("fee"))
+#         except (TypeError, ValueError):
+#             fee = -1
+#         if not name or fee < 0:
+#             raise web.HTTPBadRequest(text="Nom va narx kerak")
+#         return name, fee, 1 if d.get("pickup") else 0
+
+#     async def zone_create(request):
+#         guard(request)
+#         name, fee, pickup = await read_zone(request)
+#         pos = (db.execute("SELECT MAX(pos) FROM zones").fetchone()[0] or 0) + 1
+#         db.execute("INSERT INTO zones VALUES (?,?,?,?,?)", (uuid.uuid4().hex[:8], name, fee, pickup, pos))
+#         db.commit()
+#         return web.json_response({"ok": True})
+
+#     async def zone_update(request):
+#         guard(request)
+#         name, fee, pickup = await read_zone(request)
+#         db.execute("UPDATE zones SET name=?, fee=?, pickup=? WHERE id=?", (name, fee, pickup, request.match_info["id"]))
+#         db.commit()
+#         return web.json_response({"ok": True})
+
+#     async def zone_delete(request):
+#         guard(request)
+#         db.execute("DELETE FROM zones WHERE id=?", (request.match_info["id"],))
+#         db.commit()
+#         return web.json_response({"ok": True})
+
+#     async def broadcast(text):
+#         for (uid,) in db.execute("SELECT id FROM users").fetchall():
+#             try:
+#                 await bot.send_message(uid, text)
+#             except Exception:
+#                 pass
+#             await asyncio.sleep(0.06)
+
+#     async def menu_sold(request):
+#         guard(request)
+#         d = await request.json()
+#         mid, sold = request.match_info["id"], 1 if d.get("sold") else 0
+#         row = db.execute("SELECT name FROM menu WHERE id=?", (mid,)).fetchone()
+#         if not row:
+#             raise web.HTTPNotFound()
+#         db.execute("UPDATE menu SET sold=? WHERE id=?", (sold, mid))
+#         db.commit()
+#         sent = 0
+#         if d.get("notify"):
+#             text = (f"⚠️ Kechirasiz, «{row[0]}» hozircha tugadi." if sold
+#                     else f"✅ «{row[0]}» yana bor! Buyurtma berishingiz mumkin. 🌭")
+#             sent = db.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+#             t = asyncio.create_task(broadcast(text))
+#             tasks.add(t)
+#             t.add_done_callback(tasks.discard)
+#         return web.json_response({"ok": True, "sent": sent})
+
+#     async def status_public(request):
+#         st = shop_status(db)
+#         return web.json_response({"open": st["open"], "hours": st["hours"], "note": st["note"],
+#                                   "message": "" if st["open"] else closed_message(st)},
+#                                  headers={"Access-Control-Allow-Origin": "*", "Cache-Control": "no-store"})
+
+#     async def shop_get(request):
+#         return web.json_response({"settings": {k: get_setting(db, k) for k in DEFAULT_SHOP}, "status": shop_status(db)})
+
+#     async def shop_set(request):
+#         guard(request)
+#         d = await request.json()
+#         import re
+#         if "open_time" in d or "close_time" in d:
+#             o, c = str(d.get("open_time", "")), str(d.get("close_time", ""))
+#             if not (re.fullmatch(r"\d\d:\d\d", o) and re.fullmatch(r"\d\d:\d\d", c)):
+#                 raise web.HTTPBadRequest(text="Vaqt noto'g'ri")
+#             set_setting(db, "open_time", o)
+#             set_setting(db, "close_time", c)
+#         if "mode" in d:
+#             if d["mode"] not in ("auto", "open", "closed"):
+#                 raise web.HTTPBadRequest(text="Rejim noto'g'ri")
+#             until = str(d.get("until", "")).strip().replace("T", " ")
+#             if until:
+#                 if not re.fullmatch(r"\d{4}-\d\d-\d\d \d\d:\d\d(:\d\d)?", until):
+#                     raise web.HTTPBadRequest(text="Sana noto'g'ri")
+#                 until = until if len(until) == 19 else until + ":00"
+#             set_setting(db, "mode", d["mode"])
+#             set_setting(db, "until", "" if d["mode"] == "auto" else until)
+#             set_setting(db, "note", str(d.get("note", "")).strip()[:300])
+#         return web.json_response({"settings": {k: get_setting(db, k) for k in DEFAULT_SHOP}, "status": shop_status(db)})
+
+#     async def broadcast_api(request):
+#         guard(request)
+#         text = str((await request.json()).get("text", "")).strip()[:1500]
+#         if len(text) < 5:
+#             raise web.HTTPBadRequest(text="Xabar juda qisqa")
+#         count = db.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+#         t = asyncio.create_task(broadcast(text))
+#         tasks.add(t)
+#         t.add_done_callback(tasks.discard)
+#         return web.json_response({"ok": True, "sent": count})
+
+#     app = web.Application(middlewares=[auth], client_max_size=2 * 1024 * 1024)
+#     app.add_routes([
+#         web.get("/", index),
+#         web.post("/api/admin/login", admin_login),
+#         web.post("/api/admin/logout", admin_logout),
+#         web.get("/api/stats", stats),
+#         web.get("/api/users", users),
+#         web.get("/api/orders", orders),
+#         web.post("/api/orders/{id}/status", set_status),
+#         web.get("/api/menu", menu_list),
+#         web.post("/api/menu", menu_create),
+#         web.put("/api/menu/{id}", menu_update),
+#         web.delete("/api/menu/{id}", menu_delete),
+#         web.post("/api/menu/{id}/sold", menu_sold),
+#         web.get("/api/zones", zones_list),
+#         web.get("/api/status", status_public),
+#         web.get("/api/shop", shop_get),
+#         web.post("/api/shop", shop_set),
+#         web.post("/api/broadcast", broadcast_api),
+#         web.post("/api/zones", zone_create),
+#         web.put("/api/zones/{id}", zone_update),
+#         web.delete("/api/zones/{id}", zone_delete),
+#     ])
+#     zal.add_routes(app, db, tashkent_now, get_menu, guard)
+#     courier.add_routes(app, db, tashkent_now, change, guard)
+#     return app
+
+
+# async def run(db, bot, kb_for):
+#     password = os.environ.get("ADMIN_PASSWORD")
+#     if not password:
+#         print("ADMIN_PASSWORD o'rnatilmagan, admin panel o'chiq.")
+#         return
+#     host = os.environ.get("ADMIN_HOST") or ("0.0.0.0" if os.environ.get("PORT") else "127.0.0.1")
+#     port = int(os.environ.get("ADMIN_PORT") or os.environ.get("PORT") or 8080)
+#     runner = web.AppRunner(make_app(db, bot, password, kb_for))
+#     await runner.setup()
+#     await web.TCPSite(runner, host, port).start()
+#     print(f"Admin panel: http://{'localhost' if host == '127.0.0.1' else host}:{port}")
+
+
+
 """
 Admin panel (veb-sayt) + menyu API. bot.py bilan bir jarayonda ishlaydi va users.db dan o'qiydi.
 
@@ -532,7 +1085,7 @@ def make_app(db, bot, password, kb_for):
         web.put("/api/zones/{id}", zone_update),
         web.delete("/api/zones/{id}", zone_delete),
     ])
-    zal.add_routes(app, db, tashkent_now, get_menu, guard)
+    zal.add_routes(app, db, tashkent_now, get_menu, guard, lambda: shop_status(db))
     courier.add_routes(app, db, tashkent_now, change, guard)
     return app
 
