@@ -64,10 +64,12 @@ def get_user(uid):
     return dict(zip(("name", "phone", "address", "zone"), row)) if row else None
 
 
-def save_user(uid, name, phone, address):
+def save_user(uid, name, phone, address=""):
     now = admin.tashkent_now().strftime("%Y-%m-%d %H:%M:%S")
+    # Manzil so'ralmaydi; /yangilash eski mijozning avvalgi manzilini o'chirib yubormasligi kerak
     db.execute("INSERT INTO users(id, name, phone, address, registered) VALUES (?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET "
-               "name=excluded.name, phone=excluded.phone, address=excluded.address, "
+               "name=excluded.name, phone=excluded.phone, "
+               "address=COALESCE(NULLIF(excluded.address, ''), users.address), "
                "registered=COALESCE(users.registered, excluded.registered)", (uid, name, phone, address, now))
     db.commit()
 
@@ -87,7 +89,9 @@ def kb_for(uid):
     user = get_user(uid)
     if not user:
         return ReplyKeyboardRemove()
-    params = {"n": user["name"].split()[0], "a": user["address"]}
+    params = {"n": user["name"].split()[0]}
+    if user["address"]:  # manzil faqat eski mijozlarda bor
+        params["a"] = user["address"]
     if PUBLIC_URL:
         params["api"] = PUBLIC_URL
     order = active_order(uid)
@@ -111,7 +115,6 @@ def kb_for(uid):
 class Reg(StatesGroup):
     name = State()
     phone = State()
-    address = State()
 
 
 async def ask_name(message: Message, state: FSMContext):
@@ -145,7 +148,8 @@ async def my_info(message: Message):
     if not user:
         await message.answer("Avval /start bosing.")
         return
-    await message.answer(f"Ism: {user['name']}\nTelefon: {user['phone']}\nManzil: {user['address']}\n\n"
+    addr = f"\nManzil: {user['address']}" if user["address"] else ""
+    await message.answer(f"Ism: {user['name']}\nTelefon: {user['phone']}{addr}\n\n"
                          "O'zgartirish uchun /yangilash ni bosing.")
 
 
@@ -173,19 +177,9 @@ async def reg_phone(message: Message, state: FSMContext):
     if len(digits) != 12 or not digits.startswith("998"):
         await message.answer("Raqam noto'g'ri. Masalan: +998 90 123 45 67")
         return
-    await state.update_data(phone="+" + digits)
-    await state.set_state(Reg.address)
-    await message.answer("Yetkazish manzilingizni yozing (ko'cha, uy, mo'ljal):", reply_markup=ReplyKeyboardRemove())
-
-
-@dp.message(Reg.address, F.text)
-async def reg_address(message: Message, state: FSMContext):
-    address = message.text.strip()
-    if len(address) < 3:
-        await message.answer("Manzilni to'liqroq yozing.")
-        return
+    # Manzil so'ralmaydi: yetkazish joyi buyurtma berishda hudud tanlash orqali aniqlanadi
     data = await state.get_data()
-    save_user(message.from_user.id, data["name"], data["phone"], address)
+    save_user(message.from_user.id, data["name"], "+" + digits)
     await state.clear()
     await message.answer("Rahmat, ro'yxatdan o'tdingiz! Endi buyurtma berishingiz mumkin.",
                          reply_markup=kb_for(message.from_user.id))
@@ -235,7 +229,9 @@ async def on_order(message: Message):
     subtotal = sum(i["price"] * i["qty"] for i in items)
     delivery = zone["fee"]
     total = subtotal + delivery
-    address = "Olib ketadi (o'zi keladi)" if zone["pickup"] else (order.get("address") or user["address"]).strip()
+    # Manzil so'ralmaydi: bo'sh bo'lsa, dastavchik va admin ko'rishi uchun tanlangan hudud nomi yoziladi
+    address = ("Olib ketadi (o'zi keladi)" if zone["pickup"]
+               else (order.get("address") or user["address"] or zone["name"]).strip())
     comment = str(order.get("comment", ""))[:200]
     by_card = order.get("pay") == "card"
     pay = "card" if by_card else "cash"
