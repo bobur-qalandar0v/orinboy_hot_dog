@@ -414,12 +414,15 @@
           <form id="fr" hidden>
             <label for="r1">Ism va familiya</label
             ><input id="r1" autocomplete="name" required />
-            <label for="r2">Telefon raqami</label
+            <label for="r2">Telefon raqami (+998 dan keyin 9 ta raqam)</label
             ><input
               id="r2"
               type="tel"
-              inputmode="tel"
-              placeholder="+998 90 123 45 67"
+              inputmode="numeric"
+              autocomplete="tel"
+              value="+998 "
+              pattern="\+998 \d{9}"
+              title="+998 dan keyin 9 ta raqam yozing. Masalan: 881234565"
               required
             />
             <label for="r5">Mashina rusumi</label
@@ -569,6 +572,13 @@
         );
       const resetPw = () =>
         document.querySelectorAll(".eye").forEach((b) => setEye(b, false));
+      // Telefon: «+998 » o'chmaydi, undan keyin faqat 9 ta raqam yoziladi (qo'yilgan +998... ham to'g'rilanadi)
+      $("#r2").addEventListener("input", (e) => {
+        const v =
+          "+998 " +
+          e.target.value.replace(/\D/g, "").replace(/^998/, "").slice(0, 9);
+        if (e.target.value !== v) e.target.value = v;
+      });
       function amsg(t, ok) {
         const e = $("#amsg");
         e.textContent = t;
