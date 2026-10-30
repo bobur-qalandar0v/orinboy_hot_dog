@@ -3333,7 +3333,7 @@
 <div class="act"><button data-print="${o.id}">🖨 Chek chiqarish</button>${o.status === "open" ? `<button data-zfree="${o.id}">Stolni bo'shatish</button>` : ""}</div></div>`;
       const takeCard = (o) => {
         const isOpen = o.status === "open";
-        return `<div class="card order"><div class="oh"><b>🥡 Saboy №${o.number}</b>${o.customer ? `<span class="tag">${esc(o.customer)}</span>` : ""}<span class="tag ${isOpen ? "s-new" : "s-completed"}">${isOpen ? "Yangi" : "Berildi"}</span>${isOpen ? `<span class="tag ${o.printed ? "" : "s-cooking"}">${o.printed ? "🖨 Chiqarilgan" : "Chek chiqarilmagan"}</span>` : ""}<span class="muted">${ago(isOpen ? o.created : o.closed || o.created)}</span><b style="margin-left:auto">${fmt(o.total)}</b></div>
+        return `<div class="card order"><div class="oh"><b>🥡 Saboy №${o.number}</b>${o.customer ? `<span class="tag">${esc(o.customer)}</span>` : ""}<span class="tag ${isOpen ? "s-new" : "s-completed"}">${isOpen ? "Yangi" : "Berildi"}</span><span class="tag ${o.printed ? "" : "s-cooking"}">${o.printed ? "🖨 Chiqarilgan" : "Chek chiqarilmagan"}</span><span class="muted">${ago(isOpen ? o.created : o.closed || o.created)}</span><b style="margin-left:auto">${fmt(o.total)}</b></div>
 <div class="muted">Ofitsant: ${esc(o.waiter || "—")} ${esc(o.waiter_phone || "")}${o.comment ? `<br>💬 ${esc(o.comment)}` : ""}</div>
 <ul class="oi">${o.items.map((i) => `<li>${esc(i.name)} × ${i.qty} <span class="muted">— ${fmt(i.price * i.qty)}</span></li>`).join("")}</ul>
 <div class="act"><button data-print="${o.id}">🖨 Chek</button>${isOpen ? `<button data-sdone="${o.id}">✅ Berildi</button>` : ""}</div></div>`;
