@@ -121,13 +121,20 @@ def add_routes(app, db, now, change_status, guard):
               "FROM orders o LEFT JOIN users u ON u.id = o.uid LEFT JOIN couriers c ON c.id = o.courier_id "
               "LEFT JOIN zones z ON z.id = o.zone_id ")
 
+    def c_stats(cid):
+        """Dastavchik yetkazgan (done/completed) barcha buyurtmalar: soni, umumiy summa, shundan yetkazish haqi."""
+        n, total, fees = db.execute(
+            "SELECT COUNT(*), COALESCE(SUM(total), 0), COALESCE(SUM(delivery), 0) FROM orders "
+            "WHERE courier_id=? AND status IN ('done','completed')", (cid,)).fetchone()
+        return {"count": n, "total": total, "fees": fees}
+
     async def c_orders(request):
         me = courier_from(request)
         active = rows(SELECT + "WHERE o.status IN ('new','cooking','delivering') AND COALESCE(z.pickup,0)=0 ORDER BY o.id")
         mine = rows(SELECT + "WHERE o.courier_id=? AND o.status IN ('done','completed') ORDER BY o.id DESC LIMIT 20", (me["id"],))
         for o in active + mine:
             o["items"] = json.loads(o["items"])
-        return web.json_response({"courier": me, "active": active, "mine": mine})
+        return web.json_response({"courier": me, "active": active, "mine": mine, "stats": c_stats(me["id"])})
 
     async def c_status(request):
         me = courier_from(request)
@@ -195,7 +202,8 @@ def add_routes(app, db, now, change_status, guard):
         return web.json_response(rows(
             "SELECT c.id, c.name, c.phone, c.login, c.pw_plain AS password, c.car_number, c.car_model, c.status, "
             "c.created, (SELECT COUNT(*) FROM orders o WHERE o.courier_id = c.id AND o.status IN ('done','completed')) "
-            "AS delivered FROM couriers c ORDER BY c.id DESC"))
+            "AS delivered, (SELECT COALESCE(SUM(o.total), 0) FROM orders o WHERE o.courier_id = c.id "
+            "AND o.status IN ('done','completed')) AS earned FROM couriers c ORDER BY c.id DESC"))
 
     async def a_status(request):
         guard(request)

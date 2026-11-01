@@ -1092,7 +1092,7 @@
             (
               o,
             ) => `<div class="card order"><div class="oh"><b>#${o.id}</b><span class="tag s-${o.status}">${ST[o.status]}</span><span class="tag">${o.pay === "card" ? "💳 Karta" : "💵 Naqd"}</span><span class="tag ${o.printed ? "" : "s-cooking"}">${o.printed ? "🖨 Chiqarilgan" : "Chek chiqarilmagan"}</span>${o.rating ? `<span class="tag">⭐ ${o.rating}</span>` : ""}<span class="muted">${ago(o.created)}</span><b style="margin-left:auto">${fmt(o.total)}</b></div>
-   <div><b>${esc(o.name || "Noma'lum")}</b> · ${esc(o.phone || "")}<br><span class="muted">📍 ${esc(o.address)}</span>${o.zone ? `<br><span class="muted">🛵 ${esc(o.zone)}${o.delivery ? " · " + fmt(o.delivery) : ""}</span>` : ""}${o.courier ? `<br><span class="muted">🚗 Dastavchik: <b>${esc(o.courier)}</b> · ${esc(o.courier_phone)} · ${esc(o.car)}</span>` : ""}${o.comment ? `<br><span class="muted">💬 ${esc(o.comment)}</span>` : ""}</div>
+   <div><b>${esc(o.name || "Noma'lum")}</b> · ${esc(o.phone || "")}${o.address && o.address !== o.zone ? `<br><span class="muted">📍 ${esc(o.address)}</span>` : ""}${o.zone ? `<br><span class="muted">🛵 ${esc(o.zone)}${o.delivery ? " · " + fmt(o.delivery) : ""}</span>` : ""}${o.courier ? `<br><span class="muted">🚗 Dastavchik: <b>${esc(o.courier)}</b> · ${esc(o.courier_phone)} · ${esc(o.car)}</span>` : ""}${o.comment ? `<br><span class="muted">💬 ${esc(o.comment)}</span>` : ""}</div>
    <ul class="oi">${o.items.map((i) => `<li>${esc(i.name)} × ${i.qty}</li>`).join("")}</ul>
    <div class="act"><button data-oprint="${o.id}">🖨 Chek</button>${(NEXT[o.status] || []).map((s) => `<button data-id="${o.id}" data-s="${s}">${s === "completed" ? "Yakunlash" : ST[s]}</button>`).join("") || '<span class="muted">Yakunlangan</span>'}</div></div>`,
           ).join("") || '<p class="muted">Buyurtma yo\'q.</p>');
@@ -1427,9 +1427,7 @@
         );
       function zTakeaway() {
         const open = zTakeOpen(),
-          done = ZO.filter(
-            (o) => o.kind === "takeaway" && o.status === "closed",
-          )
+          done = ZO.filter((o) => o.kind === "takeaway" && o.status === "closed")
             .sort((a, b) => b.id - a.id)
             .slice(0, 20);
         return (
@@ -1513,7 +1511,7 @@
             ? "SABOY №" + o.number
             : esc(o.zal) + " · STOL " + o.number;
         const who = dl
-          ? `<hr><div>Mijoz: ${esc(o.name || "—")}</div><div>Tel: ${esc(o.phone || "")}</div><div>Manzil: ${esc(o.address || "")}</div>${o.zone ? `<div>Hudud: ${esc(o.zone)}</div>` : ""}`
+          ? `<hr><div>Mijoz: ${esc(o.name || "—")}</div><div>Tel: ${esc(o.phone || "")}</div>${o.address && o.address !== o.zone ? `<div>Manzil: ${esc(o.address)}</div>` : ""}${o.zone && !/^Olib ketadi/.test(o.address || "") ? `<div>Hudud: ${esc(o.zone)}</div>` : ""}`
           : tk && o.customer
             ? `<div class="c">Mijoz: ${esc(o.customer)}</div>`
             : "";
@@ -1716,12 +1714,12 @@
           : '<span class="muted">—</span>';
       function couriersTab() {
         $("#couriers").innerHTML =
-          `<div class="card"><div class="tablewrap"><table><tr><th>Dastavchik</th><th>Telefon</th><th>Mashina</th><th>Login</th><th>Parol</th><th>Ro'yxatdan o'tgan</th><th>Yetkazgan</th><th>Holat</th><th></th></tr>` +
+          `<div class="card"><div class="tablewrap"><table><tr><th>Dastavchik</th><th>Telefon</th><th>Mashina</th><th>Login</th><th>Parol</th><th>Ro'yxatdan o'tgan</th><th>Yetkazgan</th><th>Umumiy summa</th><th>Holat</th><th></th></tr>` +
           (C.map(
             (c) =>
-              `<tr><td><b>${esc(c.name)}</b></td><td>${esc(c.phone)}</td><td>${esc(c.car_model)}<br><b>${esc(c.car_number)}</b></td><td>${esc(c.login)}</td><td>${cpwCell(c)}</td><td>${ago(c.created)}</td><td><b>${c.delivered}</b> ta</td><td><span class="tag ${c.status === "approved" ? "s-done" : c.status === "pending" ? "s-new" : "s-cancelled"}">${WST[c.status]}</span></td><td><div class="act">${c.status !== "approved" ? `<button data-cst="${c.id}:approved">Tasdiqlash</button>` : `<button data-cst="${c.id}:blocked">Bloklash</button>`}<button data-cpw="${c.id}">Parolni o'zgartirish</button><button data-cdel="${c.id}">O'chirish</button></div></td></tr>`,
+              `<tr><td><b>${esc(c.name)}</b></td><td>${esc(c.phone)}</td><td>${esc(c.car_model)}<br><b>${esc(c.car_number)}</b></td><td>${esc(c.login)}</td><td>${cpwCell(c)}</td><td>${ago(c.created)}</td><td><b>${c.delivered}</b> ta</td><td><b>${fmt(c.earned)}</b></td><td><span class="tag ${c.status === "approved" ? "s-done" : c.status === "pending" ? "s-new" : "s-cancelled"}">${WST[c.status]}</span></td><td><div class="act">${c.status !== "approved" ? `<button data-cst="${c.id}:approved">Tasdiqlash</button>` : `<button data-cst="${c.id}:blocked">Bloklash</button>`}<button data-cpw="${c.id}">Parolni o'zgartirish</button><button data-cdel="${c.id}">O'chirish</button></div></td></tr>`,
           ).join("") ||
-            '<tr><td colspan="9" class="muted">Dastavchik yo\'q.</td></tr>') +
+            '<tr><td colspan="10" class="muted">Dastavchik yo\'q.</td></tr>') +
           `</table></div></div><p class="muted">Dastavchiklar shu manzil orqali kiradi: <b>${esc(location.origin)}/courier</b></p>`;
       }
       $("#couriers").onclick = async (e) => {
@@ -2019,8 +2017,7 @@
       // ---- kirish / chiqish ----
       // So'rov ketayotganda tugmani o'chirib, aylanuvchi belgi ko'rsatadi; qaytarilgan funksiya tugmani tiklaydi
       function busy(e, label) {
-        const b =
-          e.submitter || e.target.querySelector('button[type="submit"]');
+        const b = e.submitter || e.target.querySelector('button[type="submit"]');
         if (!b) return () => {};
         const html = b.innerHTML;
         b.disabled = true;

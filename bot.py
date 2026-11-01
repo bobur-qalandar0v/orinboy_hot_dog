@@ -268,8 +268,14 @@ async def on_order(message: Message):
     pay_text = "💳 Kartaga o'tkazma (chek kutilmoqda)" if by_card else "💵 Naqd"
     fee_label = "Olib ketish" if zone["pickup"] else "Yetkazib berish"
     fee_line = "Olib ketadi (yetkazish yo'q)" if zone["pickup"] else f"Yetkazib berish ({zone['name']}): {fmt(delivery)}"
+    if zone["pickup"]:
+        place = f"Manzil: {address}\n"
+    elif address == zone["name"]:  # manzil so'ralmagan: faqat tanlangan hudud
+        place = f"Hudud: {zone['name']}\n"
+    else:
+        place = f"Manzil: {address}\nHudud: {zone['name']}\n"
     text = (f"{title} #{oid}\n\n{lines}\n{fee_line}\n\nJami: {fmt(total)}\nTo'lov: {pay_text}\n"
-            f"Ism: {user['name']}\nTelefon: {user['phone']}\nManzil: {address}\n")
+            f"Ism: {user['name']}\nTelefon: {user['phone']}\n{place}")
     if comment:
         text += f"Izoh: {comment}\n"
     text += f"Telegram: @{message.from_user.username or uid}"

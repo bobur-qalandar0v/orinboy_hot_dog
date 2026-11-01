@@ -484,7 +484,11 @@
 
       <section id="app" hidden>
         <div class="top">
-          <div><b id="cname"></b><br /><small id="ccar"></small></div>
+          <div>
+            <b id="cname"></b><br /><small id="ccar"></small><br /><small
+              id="csum"
+            ></small>
+          </div>
           <button id="logout">Chiqish</button>
         </div>
         <div class="chips">
@@ -527,7 +531,12 @@
       try {
         token = localStorage.getItem("ct") || "";
       } catch (e) {}
-      let D = { active: [], mine: [], courier: null },
+      let D = {
+          active: [],
+          mine: [],
+          courier: null,
+          stats: { count: 0, total: 0, fees: 0 },
+        },
         tab = "new",
         poll = null,
         knownNew = null,
@@ -694,6 +703,8 @@
         }
         $("#cname").textContent = "🛵 " + D.courier.name;
         $("#ccar").textContent = D.courier.car;
+        $("#csum").textContent =
+          "💰 Umumiy summa: " + fmt((D.stats || {}).total);
         const n = freshOrders().length;
         if (knownNew !== null && n > knownNew) {
           toast("🔔 Yangi buyurtma keldi!");
@@ -720,7 +731,7 @@
         const cash = o.pay !== "card";
         return `<article class="card ord"><div class="oh">${num ? `<div class="num">${num}</div>` : ""}<div class="t"><b>Buyurtma #${o.id}</b> <span class="tag s-${o.status}">${ST[o.status]}</span><br><small>${esc(o.created.slice(5, 16))}</small></div><div class="sum">${fmt(o.total)}</div></div>
   <div class="info">👤 <b>${esc(o.customer || "Mijoz")}</b> · <a href="tel:${esc(o.phone)}">📞 ${esc(o.phone || "")}</a></div>
-  <div class="info">📍 ${esc(o.address)}${o.zone ? ` · <b>${esc(o.zone)}</b>` : ""}</div>
+  <div class="info">📍 ${o.address && o.address !== o.zone ? esc(o.address) + (o.zone ? ` · <b>${esc(o.zone)}</b>` : "") : `<b>${esc(o.zone || o.address)}</b>`}</div>
   <ul>${o.items.map((i) => `<li>${esc(i.name)} × ${i.qty}</li>`).join("")}</ul>
   ${o.comment ? `<div class="info">💬 ${esc(o.comment)}</div>` : ""}
   <div class="pay">${cash ? `💵 Naqd: mijozdan <b>${fmt(o.total)}</b> olinadi` : "💳 Karta orqali to'lanadi (admin tasdiqlaydi)"}${o.delivery ? ` · yetkazib berish ${fmt(o.delivery)} kiradi` : ""}</div>
@@ -753,8 +764,14 @@
             : tab === "act"
               ? act.map((o, i) => card(o, i + 1)).join("") ||
                 "<p class=\"empty\">Sizda faol buyurtma yo'q.<br>Buyurtmani «Yangi» bo'limidan oling.</p>"
-              : D.mine.map((o) => card(o, 0)).join("") ||
-                '<p class="empty">Hali yetkazilgan buyurtma yo\'q.</p>';
+              : sumCard() +
+                (D.mine.map((o) => card(o, 0)).join("") ||
+                  '<p class="empty">Hali yetkazilgan buyurtma yo\'q.</p>');
+      }
+      // Yetkazganlarim tepasida: shu dastavchik yetkazgan barcha buyurtmalar bo'yicha hisob (ro'yxat esa oxirgi 20 tasini ko'rsatadi)
+      function sumCard() {
+        const s = D.stats || { count: 0, total: 0, fees: 0 };
+        return `<div class="card ord"><div class="kv"><span>Yetkazgan buyurtmalar</span><b>${s.count} ta</b></div><div class="kv"><span>Umumiy summa</span><b>${fmt(s.total)}</b></div><div class="kv"><span>Shundan yetkazib berish haqi</span><b>${fmt(s.fees)}</b></div></div>`;
       }
       $("#tNew").onclick = () => {
         tab = "new";
