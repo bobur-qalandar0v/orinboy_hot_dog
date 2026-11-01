@@ -127,6 +127,30 @@
         transform: translate(2px, 2px);
         box-shadow: 1px 1px 0 #3a1c0d;
       }
+      .btn:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
+      .btn[aria-busy="true"] {
+        opacity: 0.8;
+        cursor: wait;
+      }
+      .spin {
+        display: inline-block;
+        width: 1em;
+        height: 1em;
+        margin-right: 8px;
+        vertical-align: -0.15em;
+        border: 3px solid currentColor;
+        border-right-color: transparent;
+        border-radius: 50%;
+        animation: spin 0.7s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
       .btn.green {
         background: var(--green);
         color: #fff;
@@ -579,6 +603,21 @@
           e.target.value.replace(/\D/g, "").replace(/^998/, "").slice(0, 9);
         if (e.target.value !== v) e.target.value = v;
       });
+      // So'rov ketayotganda tugmani o'chirib, aylanuvchi belgi ko'rsatadi; qaytarilgan funksiya tugmani tiklaydi
+      function busy(e, label) {
+        const b =
+          e.submitter || e.target.querySelector('button[type="submit"]');
+        if (!b) return () => {};
+        const html = b.innerHTML;
+        b.disabled = true;
+        b.setAttribute("aria-busy", "true");
+        b.innerHTML = `<span class="spin" aria-hidden="true"></span>${label}`;
+        return () => {
+          b.disabled = false;
+          b.removeAttribute("aria-busy");
+          b.innerHTML = html;
+        };
+      }
       function amsg(t, ok) {
         const e = $("#amsg");
         e.textContent = t;
@@ -586,6 +625,7 @@
       }
       $("#fl").onsubmit = async (e) => {
         e.preventDefault();
+        const done = busy(e, "Kirilmoqda…");
         try {
           const d = await api("/api/c/login", {
             method: "POST",
@@ -604,10 +644,13 @@
           start();
         } catch (x) {
           amsg(x.message);
+        } finally {
+          done();
         }
       };
       $("#fr").onsubmit = async (e) => {
         e.preventDefault();
+        const done = busy(e, "Yuborilmoqda…");
         try {
           await api("/api/c/register", {
             method: "POST",
@@ -629,6 +672,8 @@
           );
         } catch (x) {
           amsg(x.message);
+        } finally {
+          done();
         }
       };
       function logout() {
@@ -664,7 +709,7 @@
         if (o.courier_id && o.courier_id !== me)
           return `<p class="taken">🛵 Dastavchik: ${esc(o.courier)} · ${esc(o.car)}</p>`;
         if (o.status === "new")
-          return `<button class="btn" data-id="${o.id}" data-s="cooking">👨‍🍳 Tayyorlanmoqda</button>`;
+          return `<button class="btn" data-id="${o.id}" data-s="cooking">👨‍🍳 Buyurtmani olish va tayyorlatish</button>`;
         if (o.status === "cooking")
           return `<button class="btn blue" data-id="${o.id}" data-s="delivering">🛵 Yo'lda</button>`;
         if (o.status === "delivering")

@@ -314,6 +314,26 @@
         opacity: 0.45;
         cursor: not-allowed;
       }
+      .btn[aria-busy="true"] {
+        opacity: 0.8;
+        cursor: wait;
+      }
+      .spin {
+        display: inline-block;
+        width: 1em;
+        height: 1em;
+        margin-right: 8px;
+        vertical-align: -0.15em;
+        border: 3px solid currentColor;
+        border-right-color: transparent;
+        border-radius: 50%;
+        animation: spin 0.7s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
       .pw {
         position: relative;
       }
@@ -836,6 +856,20 @@
             .slice(0, 9);
         if (e.target.value !== v) e.target.value = v;
       });
+      // So'rov ketayotganda tugmani o'chirib, aylanuvchi belgi ko'rsatadi; qaytarilgan funksiya tugmani tiklaydi
+      function busy(e, label) {
+        const b = e.submitter || e.target.querySelector('button[type="submit"]');
+        if (!b) return () => {};
+        const html = b.innerHTML;
+        b.disabled = true;
+        b.setAttribute("aria-busy", "true");
+        b.innerHTML = `<span class="spin" aria-hidden="true"></span>${label}`;
+        return () => {
+          b.disabled = false;
+          b.removeAttribute("aria-busy");
+          b.innerHTML = html;
+        };
+      }
       function amsg(t, ok) {
         const e = $("#amsg");
         e.textContent = t;
@@ -843,6 +877,7 @@
       }
       $("#fl").onsubmit = async (e) => {
         e.preventDefault();
+        const done = busy(e, "Kirilmoqda…");
         try {
           const d = await api("/api/w/login", {
             method: "POST",
@@ -861,10 +896,13 @@
           start();
         } catch (x) {
           amsg(x.message);
+        } finally {
+          done();
         }
       };
       $("#fr").onsubmit = async (e) => {
         e.preventDefault();
+        const done = busy(e, "Yuborilmoqda…");
         try {
           await api("/api/w/register", {
             method: "POST",
@@ -884,6 +922,8 @@
           );
         } catch (x) {
           amsg(x.message);
+        } finally {
+          done();
         }
       };
       function logout() {
@@ -999,7 +1039,7 @@
           (TAKE.length
             ? TAKE.map(
                 (o) =>
-                  `<div class="card" style="margin-top:14px"><div class="kv"><b>Saboy №${o.number}${o.customer ? " · " + esc(o.customer) : ""}</b><span>${esc(o.created.slice(11, 16))}</span></div>` +
+                  `<div class="card" style="margin-top:14px"><div class="kv"><b>Saboy №${o.number}${o.customer ? " · Mijoz: " + esc(o.customer) : ""}</b><span>${esc(o.created.slice(11, 16))}</span></div>` +
                   o.items
                     .map(
                       (it) =>
