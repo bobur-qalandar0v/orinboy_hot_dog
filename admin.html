@@ -1804,16 +1804,41 @@
       <label>Qachongacha (ixtiyoriy, shu vaqtdan keyin jadvalga qaytadi)<br><input type="datetime-local" id="suntil" value="${esc((s.until || "").slice(0, 16).replace(" ", "T"))}"></label>
       <label>Mijozlarga ko'rsatiladigan izoh (yopiq bo'lganda)<br><textarea id="snote" rows="2" maxlength="300" placeholder="Masalan: Bugun dam olish kuni. Ertaga 18:00 dan ishlaymiz.">${esc(s.note)}</textarea></label></div>
     <div class="act" style="margin-top:10px"><button id="saveMode">Saqlash</button></div></div>
+  <div class="card" style="margin-bottom:14px"><h3>Operator telefon raqami</h3>
+    <p class="muted" style="margin:0 0 8px">Buyurtma bekor qilinganda mijozga «Operator bilan bog'laning» xabari bilan shu raqam yuboriladi. Bo'sh qoldirsangiz, raqam yuborilmaydi.</p>
+    <input type="tel" id="sphone" inputmode="numeric" autocomplete="off" value="${esc(s.operator_phone ? s.operator_phone.replace(/^\+998/, "+998 ") : "+998 ")}" placeholder="+998 90 123 45 67">
+    <div class="act" style="margin-top:10px"><button id="savePhone">Saqlash</button></div></div>
   <div class="card"><h3>Hamma mijozlarga xabar yuborish</h3>
     <p class="muted" style="margin:0 0 8px">Xabar botda ro'yxatdan o'tgan barcha mijozlarga (${U.length} ta) yuboriladi.</p>
     <div class="chips"><button data-tpl="dam">Dam olish</button><button data-tpl="kech">Kech ochiladi</button><button data-tpl="erta">Erta yopiladi</button><button data-tpl="ochiq">Ishlayapmiz</button></div>
     <textarea id="bt" rows="5" maxlength="1500" placeholder="Xabar matnini yozing yoki yuqoridagi namunalardan birini tanlang"></textarea>
     <div class="act" style="margin-top:10px"><button id="sendBc">📣 Hammaga yuborish</button></div></div>`;
       }
+      // Operator telefoni: «+998 » o'chmaydi, undan keyin faqat 9 ta raqam yoziladi
+      $("#shop").addEventListener("input", (e) => {
+        if (e.target.id !== "sphone") return;
+        const v =
+          "+998 " +
+          e.target.value.replace(/\D/g, "").replace(/^998/, "").slice(0, 9);
+        if (e.target.value !== v) e.target.value = v;
+      });
       $("#shop").onclick = async (e) => {
         const t = e.target.closest("button");
         if (!t) return;
         try {
+          if (t.id === "savePhone") {
+            const v = $("#sphone").value.replace(/\D/g, "").replace(/^998/, "");
+            if (v && v.length !== 9) {
+              toast("+998 dan keyin 9 ta raqam yozing");
+              return;
+            }
+            SH = await post("/api/shop", "POST", {
+              operator_phone: v ? "+998" + v : "",
+            });
+            toast(v ? "Operator raqami saqlandi" : "Operator raqami o'chirildi");
+            shopTab();
+            return load();
+          }
           if (t.dataset.mode) {
             shopMode = t.dataset.mode;
             const keep = ($("#bt") || {}).value || "";

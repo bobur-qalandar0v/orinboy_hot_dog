@@ -327,7 +327,7 @@ async def do_cancel(cb: CallbackQuery):
         return
     if row[1] != "new":
         await cb.message.edit_text("Buyurtma allaqachon tayyorlanmoqda, endi bekor qilib bo'lmaydi. "
-                                   "Operator bilan bog'laning.")
+                                   "Operator bilan bog'laning." + admin.operator_line(db))
         await cb.answer()
         return
     db.execute("UPDATE orders SET status='cancelled' WHERE id=?", (oid,))

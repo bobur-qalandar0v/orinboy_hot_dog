@@ -11,6 +11,7 @@ import base64
 import hmac
 import json
 import os
+import re
 import secrets
 import time
 import uuid
@@ -83,7 +84,8 @@ def tashkent_now():
     return datetime.now(TZ).replace(tzinfo=None)
 
 
-DEFAULT_SHOP = {"open_time": "18:00", "close_time": "02:00", "mode": "auto", "until": "", "note": ""}
+DEFAULT_SHOP = {"open_time": "18:00", "close_time": "02:00", "mode": "auto", "until": "", "note": "",
+                "operator_phone": ""}
 
 
 def get_setting(db, key):
@@ -113,6 +115,15 @@ def shop_status(db):
     is_open = True if mode == "open" else False if mode == "closed" else in_hours
     return {"open": is_open, "mode": mode, "in_hours": in_hours, "open_time": o, "close_time": c,
             "hours": f"{o}–{c}", "until": s["until"], "note": s["note"] if mode != "auto" else ""}
+
+
+def operator_line(db):
+    """«Operator bilan bog'laning» xabarlariga qo'shiladigan telefon qatori.
+    Raqam admin paneldan kiritiladi; kiritilmagan bo'lsa bo'sh qator qaytadi."""
+    d = re.sub(r"\D", "", get_setting(db, "operator_phone"))
+    if len(d) != 12:
+        return ""
+    return f"\n📞 Operator: +{d[:3]} {d[3:5]} {d[5:8]} {d[8:10]} {d[10:]}"
 
 
 def closed_message(st):
@@ -337,7 +348,7 @@ def make_app(db, bot, password, kb_for):
         if status in ("done", "completed", "cancelled"):
             db.execute("DELETE FROM pending WHERE uid=?", (uid,))
         db.commit()
-        extra = ""
+        extra = operator_line(db) if status == "cancelled" else ""
         if status == "delivering":
             c = db.execute("SELECT c.name, c.phone, c.car_model, c.car_number FROM orders o "
                            "JOIN couriers c ON c.id = o.courier_id WHERE o.id=?", (oid,)).fetchone()
@@ -485,7 +496,13 @@ def make_app(db, bot, password, kb_for):
     async def shop_set(request):
         guard(request)
         d = await request.json()
-        import re
+        if "operator_phone" in d:
+            raw = re.sub(r"\D", "", str(d["operator_phone"]))
+            if len(raw) == 9:
+                raw = "998" + raw
+            if raw and not (len(raw) == 12 and raw.startswith("998")):
+                raise web.HTTPBadRequest(text="Telefon raqami noto'g'ri")
+            set_setting(db, "operator_phone", "+" + raw if raw else "")
         if "open_time" in d or "close_time" in d:
             o, c = str(d.get("open_time", "")), str(d.get("close_time", ""))
             if not (re.fullmatch(r"\d\d:\d\d", o) and re.fullmatch(r"\d\d:\d\d", c)):
