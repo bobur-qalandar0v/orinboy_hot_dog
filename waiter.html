@@ -1039,7 +1039,7 @@
           (TAKE.length
             ? TAKE.map(
                 (o) =>
-                  `<div class="card" style="margin-top:14px"><div class="kv"><b>Saboy №${o.number}${o.customer ? " · Mijoz: " + esc(o.customer) : ""}</b><span>${esc(o.created.slice(11, 16))}</span></div>` +
+                  `<div class="card" style="margin-top:14px"><div class="kv"><b>Saboy №${o.number}${o.customer ? " · Mijoz: " + esc(o.customer) : ""}</b><span>${esc(o.created.slice(11, 16))}</span></div><p class="muted2" style="margin:2px 0 6px">👤 Ofitsant: ${esc(o.waiter || "—")}</p>` +
                   o.items
                     .map(
                       (it) =>
