@@ -1280,7 +1280,7 @@ def err(msg, status=400):
     return web.json_response({"error": msg}, status=status)
 
 
-def add_routes(app, db, now, get_menu, guard, shop_status=None):
+def add_routes(app, db, now, get_menu, guard, shop_status=None, bonus_config=None):
     def rows(sql, args=()):
         cur = db.execute(sql, args)
         cols = [c[0] for c in cur.description]
@@ -1335,6 +1335,16 @@ def add_routes(app, db, now, get_menu, guard, shop_status=None):
         if not items:
             return None, err("Buyurtma bo'sh.")
         return items, None
+
+    def add_bonus(d, items, base_total):
+        """Bonus tanlangan va summa yetarli bo'lsa, narxi 0 bo'lgan qator qo'shadi. base_total: shu buyurtmagacha bo'lgan summa."""
+        name = str(d.get("bonus") or "")
+        cfg = bonus_config() if bonus_config else {"min": 0, "items": []}
+        total = base_total + sum(i["price"] * i["qty"] for i in items)
+        if name and cfg["min"] and total >= cfg["min"] and name in cfg["items"]:
+            items.append({"id": "bonus", "name": "🎁 " + name + " (bonus)", "qty": 1, "price": 0})
+            return True
+        return False
 
     # ------------------------- ofitsant tomoni -------------------------
     async def page(request):
@@ -1407,7 +1417,8 @@ def add_routes(app, db, now, get_menu, guard, shop_status=None):
             o["items"] = json.loads(o["items"])
         st = shop_status() if shop_status else {"open": True, "hours": "", "note": ""}
         shop = {"open": st["open"], "hours": st["hours"], "note": st.get("note", "")}
-        return web.json_response({"waiter": w, "tables": tables, "takeaways": takeaways, "shop": shop})
+        bonus = bonus_config() if bonus_config else {"min": 0, "items": []}
+        return web.json_response({"waiter": w, "tables": tables, "takeaways": takeaways, "shop": shop, "bonus": bonus})
 
     async def w_order(request):
         w = waiter_from(request)
@@ -1421,6 +1432,10 @@ def add_routes(app, db, now, get_menu, guard, shop_status=None):
         items, bad = read_items(d)
         if bad:
             return bad
+        prev = db.execute("SELECT items FROM zal_orders WHERE table_id=? AND status='open'", (t[0],)).fetchall()
+        prev_items = [i for r in prev for i in json.loads(r[0])]
+        if not any(i.get("id") == "bonus" for i in prev_items):  # stolga bitta bonus
+            add_bonus(d, items, sum(i["price"] * i["qty"] for i in prev_items))
         total = sum(i["price"] * i["qty"] for i in items)
         try:
             guests = max(0, min(50, int(d.get("guests", 0) or 0)))
@@ -1449,6 +1464,7 @@ def add_routes(app, db, now, get_menu, guard, shop_status=None):
         items, bad = read_items(d)
         if bad:
             return bad
+        add_bonus(d, items, 0)
         total = sum(i["price"] * i["qty"] for i in items)
         customer = str(d.get("customer", "")).strip()[:40]
         # Kunlik tartib raqami: smena yarim tundan o'tadi (18:00–02:00), shuning uchun kun soat 06:00 da almashadi

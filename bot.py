@@ -101,7 +101,7 @@
 #         params["z"] = zid
 #     if order:
 #         params["e"] = order["id"]
-#         params["c"] = ",".join(f"{i['id']}:{i['qty']}" for i in order["items"])
+#         params["c"] = ",".join(f"{i['id']}:{i['qty']}" for i in order["items"] if i["id"] != "bonus")
 #     sep = "&" if "?" in WEBAPP_URL else "?"
 #     app = WebAppInfo(url=WEBAPP_URL + sep + urlencode(params))
 #     if order:
@@ -545,7 +545,7 @@ def kb_for(uid):
         params["z"] = zid
     if order:
         params["e"] = order["id"]
-        params["c"] = ",".join(f"{i['id']}:{i['qty']}" for i in order["items"])
+        params["c"] = ",".join(f"{i['id']}:{i['qty']}" for i in order["items"] if i["id"] != "bonus")
     sep = "&" if "?" in WEBAPP_URL else "?"
     app = WebAppInfo(url=WEBAPP_URL + sep + urlencode(params))
     if order:
@@ -706,6 +706,9 @@ async def on_order(message: Message):
                              reply_markup=kb_for(uid))
         return
     subtotal = sum(i["price"] * i["qty"] for i in items)
+    bonus = admin.bonus_item(db, str(order.get("bonus") or ""), subtotal)
+    if bonus:
+        items.append(bonus)
     delivery = zone["fee"]
     total = subtotal + delivery
     # Manzil so'ralmaydi: bo'sh bo'lsa, dastavchik va admin ko'rishi uchun tanlangan hudud nomi yoziladi

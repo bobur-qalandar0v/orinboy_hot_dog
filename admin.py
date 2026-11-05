@@ -85,7 +85,7 @@ def tashkent_now():
 
 
 DEFAULT_SHOP = {"open_time": "18:00", "close_time": "02:00", "mode": "auto", "until": "", "note": "",
-                "operator_phone": ""}
+                "operator_phone": "", "bonus_min": "0", "bonus_items": ""}
 
 
 def get_setting(db, key):
@@ -97,6 +97,24 @@ def set_setting(db, key, value):
     db.execute("INSERT INTO settings(key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
                (key, value))
     db.commit()
+
+
+def bonus_config(db):
+    """Bonus: buyurtma summasi `min` dan oshsa, mijoz `items` ro'yxatidan bittasini bepul oladi (min=0 yoki ro'yxat bo'sh: o'chiq)."""
+    try:
+        mn = max(0, int(get_setting(db, "bonus_min") or 0))
+    except (TypeError, ValueError):
+        mn = 0
+    items = [x.strip() for x in str(get_setting(db, "bonus_items") or "").split("\n") if x.strip()]
+    return {"min": mn if items else 0, "items": items}
+
+
+def bonus_item(db, name, subtotal):
+    """Bonus qatori (narxi 0) yoki None: bonus o'chiq, summa yetmaydi yoki nom ro'yxatda yo'q bo'lsa."""
+    cfg = bonus_config(db)
+    if not cfg["min"] or subtotal < cfg["min"] or name not in cfg["items"]:
+        return None
+    return {"id": "bonus", "name": "🎁 " + name + " (bonus)", "qty": 1, "price": 0}
 
 
 def shop_status(db):
@@ -293,6 +311,8 @@ def make_app(db, bot, password, kb_for):
             hours[int(o["created"][11:13])] += 1
             pay["card" if o["pay"] == "card" else "cash"] += 1
             for it in json.loads(o["items"]):
+                if it.get("id") == "bonus":  # bepul bonus «eng ko'p sotilgan» ro'yxatga kirmaydi
+                    continue
                 p = prods.setdefault(it["name"], {"name": it["name"], "qty": 0, "revenue": 0})
                 p["qty"] += it["qty"]
                 p["revenue"] += it["qty"] * it["price"]
@@ -487,6 +507,7 @@ def make_app(db, bot, password, kb_for):
     async def status_public(request):
         st = shop_status(db)
         return web.json_response({"open": st["open"], "hours": st["hours"], "note": st["note"],
+                                  "bonus": bonus_config(db),
                                   "message": "" if st["open"] else closed_message(st)},
                                  headers={"Access-Control-Allow-Origin": "*", "Cache-Control": "no-store"})
 
@@ -503,6 +524,24 @@ def make_app(db, bot, password, kb_for):
             if raw and not (len(raw) == 12 and raw.startswith("998")):
                 raise web.HTTPBadRequest(text="Telefon raqami noto'g'ri")
             set_setting(db, "operator_phone", "+" + raw if raw else "")
+        if "bonus_min" in d or "bonus_items" in d:
+            try:
+                mn = int(str(d.get("bonus_min", 0)).replace(" ", "") or 0)
+            except ValueError:
+                raise web.HTTPBadRequest(text="Bonus summasi noto'g'ri")
+            if not 0 <= mn <= 100_000_000:
+                raise web.HTTPBadRequest(text="Bonus summasi noto'g'ri")
+            raw = d.get("bonus_items", "")
+            lst = raw if isinstance(raw, list) else str(raw).split("\n")
+            names = []
+            for x in lst:
+                x = re.sub(r"\s+", " ", str(x)).strip()[:40]
+                if x and x not in names:
+                    names.append(x)
+            if len(names) > 12:
+                raise web.HTTPBadRequest(text="Bonus ro'yxati 12 tadan oshmasin")
+            set_setting(db, "bonus_min", str(mn))
+            set_setting(db, "bonus_items", "\n".join(names))
         if "open_time" in d or "close_time" in d:
             o, c = str(d.get("open_time", "")), str(d.get("close_time", ""))
             if not (re.fullmatch(r"\d\d:\d\d", o) and re.fullmatch(r"\d\d:\d\d", c)):
@@ -557,7 +596,7 @@ def make_app(db, bot, password, kb_for):
         web.put("/api/zones/{id}", zone_update),
         web.delete("/api/zones/{id}", zone_delete),
     ])
-    zal.add_routes(app, db, tashkent_now, get_menu, guard, lambda: shop_status(db))
+    zal.add_routes(app, db, tashkent_now, get_menu, guard, lambda: shop_status(db), lambda: bonus_config(db))
     courier.add_routes(app, db, tashkent_now, change, guard)
     return app
 
