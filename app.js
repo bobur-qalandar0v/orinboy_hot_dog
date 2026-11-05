@@ -146,7 +146,13 @@ $("send").onclick = () => {
         address, zone, comment: $("note").value.trim(), pay, edit: EDIT, total: total(),
         items: MENU.filter(m => cart[m.id]).map(m => ({ id: m.id, name: m.name + (/Standart|Katta/.test(m.desc) ? " (" + m.desc.toLowerCase() + ")" : ""), qty: cart[m.id], price: m.price }))
     };
-    if (tg && tg.sendData) tg.sendData(JSON.stringify(order)); else { console.log(order); show("done"); }
+    if (tg && tg.sendData) {
+        const b = $("send");
+        if (b.disabled) return;           // ikki marta bosishdan himoya
+        b.disabled = true; b.setAttribute("aria-busy", "true"); b.textContent = "Yuborilmoqda…";
+        setTimeout(() => { b.disabled = false; b.removeAttribute("aria-busy"); b.textContent = "Buyurtmani yuborish"; }, 8000);
+        tg.sendData(JSON.stringify(order));
+    } else { console.log(order); show("done"); }
 };
 
 // To'lov turi

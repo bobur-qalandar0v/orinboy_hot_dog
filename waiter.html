@@ -581,7 +581,8 @@
       #toast.show {
         transform: translate(-50%, 0);
       }
-    </style>
+    button[aria-busy="true"]{opacity:.75;cursor:wait}
+</style>
   </head>
   <body>
     <main>
@@ -743,6 +744,49 @@
     <div id="toast" role="status"></div>
 
     <script>
+/* === auto-loading: ma'lumot yuboruvchi tugmalar === */
+(function () {
+  if (window.__autoLoading) return; window.__autoLoading = true;
+  const of = window.fetch.bind(window), flight = new Map();
+  let active = null;
+  const mark = e => { const b = e.target && e.target.closest && e.target.closest("button"); if (b && !b.disabled) active = { btn: b, t: Date.now() }; };
+  document.addEventListener("click", mark, true);
+  document.addEventListener("submit", e => { const b = e.submitter || (e.target.querySelector && e.target.querySelector('button[type="submit"]')); if (b && !b.disabled) active = { btn: b, t: Date.now() }; }, true);
+  document.addEventListener("change", () => { active = null; }, true);
+  document.addEventListener("keydown", e => { if (e.key !== "Enter") active = null; }, true);
+  function on(b) {
+    if (b.getAttribute("aria-busy") === "true" && !b.__n) return false;
+    b.__n = (b.__n || 0) + 1;
+    if (b.__n === 1) {
+      b.__was = b.disabled;
+      const s = document.createElement("span"); s.className = "spin"; s.setAttribute("aria-hidden", "true"); s.__auto = 1;
+      b.insertBefore(s, b.firstChild); b.disabled = true; b.setAttribute("aria-busy", "true");
+    }
+    return true;
+  }
+  function off(b) {
+    if (!b.__n || --b.__n) return;
+    b.querySelectorAll(":scope > .spin").forEach(s => { if (s.__auto) s.remove(); });
+    b.disabled = !!b.__was; b.removeAttribute("aria-busy");
+  }
+  window.fetch = function (u, o) {
+    const m = ((o && o.method) || "GET").toUpperCase();
+    if (m === "GET" || m === "HEAD") return of(u, o);
+    const body = o && o.body;
+    let key = null;
+    if (body == null || typeof body === "string") key = m + " " + u + " " + (body || "");
+    let btn = null;
+    if (active && Date.now() - active.t < 60000 && document.body.contains(active.btn)) btn = active.btn;
+    if (key && flight.has(key)) return flight.get(key).then(r => r.clone());
+    const shared = of(u, o);
+    const on_ = btn ? on(btn) : false;
+    if (key) flight.set(key, shared);
+    const fin = () => { if (key && flight.get(key) === shared) flight.delete(key); if (on_) off(btn); };
+    shared.then(fin, fin);
+    return shared.then(r => r.clone());
+  };
+})();
+
       const $ = (s) => document.querySelector(s);
       const fmt = (n) =>
         Number(n || 0)
