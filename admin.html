@@ -718,8 +718,11 @@
           <button data-t="dash" class="on">
             <i>📊</i><span>Statistika</span>
           </button>
+          <button data-t="all">
+            <i>📋</i><span>Barcha buyurtmalar</span>
+          </button>
           <button data-t="orders">
-            <i>🧾</i><span>Buyurtmalar</span
+            <i>🧾</i><span>Bot buyurtmalari</span
             ><span class="badge" id="newb" hidden>0</span>
           </button>
           <button data-t="users"><i>👥</i><span>Mijozlar</span></button>
@@ -779,6 +782,7 @@
         </header>
         <main>
           <section id="dash"></section>
+          <section id="all" hidden></section>
           <section id="orders" hidden></section>
           <section id="users" hidden></section>
           <section id="menu" hidden></section>
@@ -1119,6 +1123,63 @@
         };
       }
 
+      // Barcha buyurtmalar: bot (yetkazish) va zal (stol, saboy) birga, vaqt bo'yicha ketma-ket
+      let allF = "all";
+      function allOrders() {
+        const rowsAll = [
+          ...O.map((o) => ({
+            src: "bot",
+            key: "b" + o.id,
+            created: o.created,
+            total: o.total,
+            items: o.items,
+            active: !["completed", "cancelled"].includes(o.status),
+            label: `🤖 Bot #${o.id}`,
+            status: ST[o.status] || o.status,
+            cls: "s-" + o.status,
+            who: `${o.name || "Noma'lum"}${o.phone ? " · " + o.phone : ""}${o.zone ? " · 🛵 " + o.zone : ""}`,
+            sub: o.pay === "card" ? "💳 Karta" : "💵 Naqd",
+          })),
+          ...ZO.map((o) => {
+            const tk = o.kind === "takeaway";
+            return {
+              src: tk ? "take" : "zal",
+              key: "z" + o.id,
+              created: o.created,
+              total: o.total,
+              items: o.items,
+              active: o.status === "open",
+              label: tk ? `🥡 Saboy №${o.number}` : `🍽️ ${o.zal || "Zal"} · Stol ${o.number}`,
+              status: o.status === "open" ? "Ochiq" : "Yopilgan",
+              cls: o.status === "open" ? "s-cooking" : "s-completed",
+              who: `${tk && o.customer ? "Mijoz: " + o.customer + " · " : ""}${o.waiter ? "👤 " + o.waiter : ""}`,
+              sub: "💵 Zal",
+            };
+          }),
+        ].sort((a, b) => (a.created < b.created ? 1 : a.created > b.created ? -1 : 0));
+        const F = [
+          ["all", "Hammasi", () => true],
+          ["active", "Faol", (r) => r.active],
+          ["bot", "🤖 Bot", (r) => r.src === "bot"],
+          ["zal", "🍽️ Zal", (r) => r.src === "zal"],
+          ["take", "🥡 Saboy", (r) => r.src === "take"],
+        ];
+        const cur = F.find((f) => f[0] === allF) || F[0];
+        const L = rowsAll.filter(cur[2]).slice(0, 200);
+        $("#all").innerHTML =
+          `<div class="chips">${F.map(([k, l, fn]) => `<button data-af="${k}" class="${allF === k ? "on" : ""}">${l} (${rowsAll.filter(fn).length})</button>`).join("")}</div>` +
+          (L.map(
+            (r, i) =>
+              `<div class="card order"><div class="oh"><b>${i + 1}. ${esc(r.label)}</b><span class="tag ${r.cls}">${esc(r.status)}</span><span class="tag">${r.sub}</span><span class="muted">${esc(String(r.created).slice(5, 16))} · ${ago(r.created)}</span><b style="margin-left:auto">${fmt(r.total)}</b></div>${r.who ? `<div class="muted">${esc(r.who)}</div>` : ""}<ul class="oi">${r.items.map((it) => `<li>${esc(it.name)} × ${it.qty}</li>`).join("")}</ul></div>`,
+          ).join("") || '<p class="muted">Buyurtma yo\'q.</p>');
+      }
+      $("#all").onclick = (e) => {
+        const b = e.target.closest("[data-af]");
+        if (!b) return;
+        allF = b.dataset.af;
+        allOrders();
+      };
+
       function orders() {
         const isA = (o) => !["completed", "cancelled"].includes(o.status);
         const L = O.filter(
@@ -1176,6 +1237,7 @@
         const nn = S.new + S.zal_new;
         document.title = (nn ? `(${nn}) ` : "") + "O'rinboy Admin";
         if (tab === "dash") dash();
+        else if (tab === "all") allOrders();
         else if (tab === "orders") orders();
         else if (tab === "menu") menuTab();
         else if (tab === "zones") {
@@ -1197,6 +1259,7 @@
         );
         [
           "dash",
+          "all",
           "orders",
           "users",
           "menu",
