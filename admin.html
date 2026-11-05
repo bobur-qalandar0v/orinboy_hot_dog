@@ -1852,6 +1852,11 @@
     <p class="muted" style="margin:0 0 8px">Buyurtma bekor qilinganda mijozga «Operator bilan bog'laning» xabari bilan shu raqam yuboriladi. Bo'sh qoldirsangiz, raqam yuborilmaydi.</p>
     <input type="tel" id="sphone" inputmode="numeric" autocomplete="off" value="${esc(s.operator_phone ? s.operator_phone.replace(/^\+998/, "+998 ") : "+998 ")}" placeholder="+998 90 123 45 67">
     <div class="act" style="margin-top:10px"><button id="savePhone">Saqlash</button></div></div>
+  <div class="card" style="margin-bottom:14px"><h3>🎁 Bonus</h3>
+    <p class="muted" style="margin:0 0 8px">Buyurtma (zalda stol bo'yicha jami) shu summaga yetsa, mijoz ro'yxatdan bittasini bepul oladi. Har qatorga bitta nom yozing. Summa 0 bo'lsa yoki ro'yxat bo'sh bo'lsa, bonus o'chiq.</p>
+    <label>Minimal summa (so'm)<br><input type="text" id="bmin" inputmode="numeric" autocomplete="off" value="${esc(s.bonus_min && s.bonus_min !== "0" ? s.bonus_min : "")}" placeholder="Masalan: 150000"></label>
+    <label>Bonus ro'yxati<br><textarea id="bitems" rows="5" maxlength="600" placeholder="1.5L Cola&#10;Ice Tea&#10;Fuse Tea&#10;Ark Tea">${esc(s.bonus_items || "")}</textarea></label>
+    <div class="act" style="margin-top:10px"><button id="saveBonus">Saqlash</button></div></div>
   <div class="card"><h3>Hamma mijozlarga xabar yuborish</h3>
     <p class="muted" style="margin:0 0 8px">Xabar botda ro'yxatdan o'tgan barcha mijozlarga (${U.length} ta) yuboriladi.</p>
     <div class="chips"><button data-tpl="dam">Dam olish</button><button data-tpl="kech">Kech ochiladi</button><button data-tpl="erta">Erta yopiladi</button><button data-tpl="ochiq">Ishlayapmiz</button></div>
@@ -1880,6 +1885,15 @@
               operator_phone: v ? "+998" + v : "",
             });
             toast(v ? "Operator raqami saqlandi" : "Operator raqami o'chirildi");
+            shopTab();
+            return load();
+          }
+          if (t.id === "saveBonus") {
+            SH = await post("/api/shop", "POST", {
+              bonus_min: $("#bmin").value.replace(/\D/g, "") || "0",
+              bonus_items: $("#bitems").value,
+            });
+            toast("Bonus saqlandi");
             shopTab();
             return load();
           }

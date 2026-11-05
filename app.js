@@ -80,7 +80,18 @@ function show(v) {
     if (v === "done" && G) G.fromTo("#ck", { strokeDashoffset: 60 }, { strokeDashoffset: 0, duration: .7, delay: .25, ease: "power2.out" });
 }
 const ts = { v: 0 };
+let bonusSel = "";
+function renderBonus() {
+    const B = SHOP.bonus || { min: 0, items: [] }, box = $("bonusbox"), sub = total();
+    if (!B.min || !B.items.length) { box.hidden = true; bonusSel = ""; return; }
+    box.hidden = false;
+    if (sub < B.min) { bonusSel = ""; box.innerHTML = `<p>🎁 Yana <b style="display:inline">${fmt(B.min - sub)}</b> so'mlik buyurtma qo'shing, bonus sovg'a olasiz!</p>`; return; }
+    if (!B.items.includes(bonusSel)) bonusSel = "";
+    box.innerHTML = `<b>🎁 Bonus: bittasini tanlang (bepul)</b>` + B.items.map(n => `<button type="button" class="bopt${n === bonusSel ? " on" : ""}" data-b="${n.replace(/"/g, "&quot;")}">${n === bonusSel ? "✅ " : ""}${n.replace(/</g, "&lt;")}</button>`).join("");
+}
+$("bonusbox").onclick = e => { const b = e.target.closest(".bopt"); if (!b) return; bonusSel = bonusSel === b.dataset.b ? "" : b.dataset.b; renderBonus(); };
 function renderSummary() {
+    renderBonus();
     const z = ZONES.find(x => x.id === zone), fee = z ? z.fee : 0, t = total() + fee;
     $("summary").innerHTML = MENU.filter(m => cart[m.id]).map(m => `<div class="row"><span>${m.name}${m.desc && /Standart|Katta/.test(m.desc) ? " (" + m.desc.toLowerCase() + ")" : ""} × ${cart[m.id]}</span><b>${fmt(m.price * cart[m.id])}</b></div>`).join("")
         + (z ? `<div class="row"><span>${z.pickup ? "Olib ketish" : "Yetkazib berish"}</span><b>${z.pickup ? "bepul" : fmt(fee)}</b></div>` : "")
@@ -143,7 +154,7 @@ $("send").onclick = () => {
     const address = "";  // manzilni bot ro'yxatdan o'tishdagi ma'lumotdan oladi
     $("err").textContent = "";
     const order = {
-        address, zone, comment: $("note").value.trim(), pay, edit: EDIT, total: total(),
+        address, zone, comment: $("note").value.trim(), pay, edit: EDIT, total: total(), bonus: bonusSel,
         items: MENU.filter(m => cart[m.id]).map(m => ({ id: m.id, name: m.name + (/Standart|Katta/.test(m.desc) ? " (" + m.desc.toLowerCase() + ")" : ""), qty: cart[m.id], price: m.price }))
     };
     if (tg && tg.sendData) {

@@ -318,6 +318,25 @@
         opacity: 0.8;
         cursor: wait;
       }
+      .bbox {
+        margin: 10px 0;
+        padding: 10px;
+        border: 2px dashed currentColor;
+        border-radius: 12px;
+      }
+      .bbox p {
+        margin: 0;
+      }
+      .bbox .bopt {
+        display: block;
+        width: 100%;
+        text-align: left;
+        margin-top: 6px;
+      }
+      .bbox .bopt.on {
+        outline: 2px solid currentColor;
+        font-weight: 700;
+      }
       .spin {
         display: inline-block;
         width: 1em;
@@ -702,6 +721,7 @@
     <dialog id="dc">
       <h3>Buyurtmani tekshiring</h3>
       <div id="dcl"></div>
+      <div id="bbox" class="bbox" hidden></div>
       <div class="gst" id="gbox">
         <span id="glbl">Nechta mehmon o'tirdi?</span>
         <div class="st">
@@ -1047,12 +1067,49 @@
       });
 
       // ---------- stollar ----------
+      let BONUS = { min: 0, items: [] },
+        bonusPick = "";
+      // Bonus: zalda stolning jami summasi (oldingi + shu buyurtma), saboyda shu buyurtma summasi
+      function renderBonus() {
+        const box = $("#bbox"),
+          tk = !!(cur && cur.takeaway);
+        const had = !tk && (cur.orders || []).some((o) => (o.items || []).some((i) => i.id === "bonus"));
+        const base = tk ? 0 : cur.busy ? cur.total || 0 : 0;
+        const sum = base + total();
+        if (!BONUS.min || !BONUS.items.length || had) {
+          box.hidden = true;
+          bonusPick = "";
+          return;
+        }
+        box.hidden = false;
+        if (sum < BONUS.min) {
+          bonusPick = "";
+          box.innerHTML = `<p>🎁 Bonusgacha yana <b>${fmt(BONUS.min - sum)}</b> so'm qoldi${tk ? "" : " (stol jami summasi bo'yicha)"}.</p>`;
+          return;
+        }
+        if (!BONUS.items.includes(bonusPick)) bonusPick = "";
+        box.innerHTML =
+          `<b>🎁 Bonus: mijoz bittasini tanlasin (bepul)</b>` +
+          BONUS.items
+            .map(
+              (n) =>
+                `<button type="button" class="bopt${n === bonusPick ? " on" : ""}" data-b="${esc(n)}">${n === bonusPick ? "✅ " : ""}${esc(n)}</button>`,
+            )
+            .join("");
+      }
+      $("#bbox").onclick = (e) => {
+        const b = e.target.closest(".bopt");
+        if (!b) return;
+        bonusPick = bonusPick === b.dataset.b ? "" : b.dataset.b;
+        renderBonus();
+      };
       async function loadTables() {
         try {
           const d = await api("/api/w/tables");
           TB = d.tables;
           TAKE = d.takeaways || [];
           SHOP = d.shop || { open: true, hours: "", note: "" };
+          BONUS = d.bonus || { min: 0, items: [] };
           $("#wname").textContent = "👋 " + d.waiter.name;
           renderTables();
           renderSaboy();
@@ -1352,6 +1409,7 @@
             .join("") +
           `<div class="row2" style="font-size:19px"><b>Jami</b><b>${fmt(total())}</b></div>`;
         const tk = !!cur.takeaway;
+        renderBonus();
         $("#cbox").hidden = !tk;
         if (tk) {
           // Saboy: stol ham, mehmonlar soni ham yo'q
@@ -1404,12 +1462,14 @@
                 ? {
                     customer: $("#cust").value.trim(),
                     comment: $("#note").value.trim(),
+                    bonus: bonusPick,
                     items,
                   }
                 : {
                     table_id: cur.id,
                     guests: newGuests,
                     comment: $("#note").value.trim(),
+                    bonus: bonusPick,
                     items,
                   },
             ),
