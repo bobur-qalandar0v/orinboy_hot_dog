@@ -1124,7 +1124,9 @@
       }
 
       // Barcha buyurtmalar: bot (yetkazish) va zal (stol, saboy) birga, vaqt bo'yicha ketma-ket
-      let allF = "all";
+      let allF = "all",
+        allRowsCache = [],
+        allVisible = new Set();
       function allOrders() {
         const rowsAll = [
           ...O.map((o) => ({
@@ -1135,6 +1137,9 @@
             items: o.items,
             active: !["completed", "cancelled"].includes(o.status),
             label: `🤖 Bot #${o.id}`,
+            raw: { ...o, kind: "delivery" },
+            printed: !!o.printed,
+            skip: o.status === "cancelled",
             status: ST[o.status] || o.status,
             cls: "s-" + o.status,
             who: `${o.name || "Noma'lum"}${o.phone ? " · " + o.phone : ""}${o.zone ? " · 🛵 " + o.zone : ""}`,
@@ -1150,6 +1155,9 @@
               items: o.items,
               active: o.status === "open",
               label: tk ? `🥡 Saboy №${o.number}` : `🍽️ ${o.zal || "Zal"} · Stol ${o.number}`,
+              raw: o,
+              printed: !!o.printed,
+              skip: false,
               status: o.status === "open" ? "Ochiq" : "Yopilgan",
               cls: o.status === "open" ? "s-cooking" : "s-completed",
               who: `${tk && o.customer ? "Mijoz: " + o.customer + " · " : ""}${o.waiter ? "👤 " + o.waiter : ""}`,
@@ -1166,18 +1174,80 @@
         ];
         const cur = F.find((f) => f[0] === allF) || F[0];
         const L = rowsAll.filter(cur[2]).slice(0, 200);
+        allRowsCache = rowsAll;
+        allVisible = new Set(L.map((r) => r.key));
+        const todo = L.filter((r) => !r.printed && !r.skip).length;
         $("#all").innerHTML =
+          `<div class="act" style="margin-bottom:10px"><button data-aprintall ${todo ? "" : "disabled"}>🖨 Chiqarilmagan cheklarni birin-ketin chop etish (${todo})</button></div>` +
           `<div class="chips">${F.map(([k, l, fn]) => `<button data-af="${k}" class="${allF === k ? "on" : ""}">${l} (${rowsAll.filter(fn).length})</button>`).join("")}</div>` +
           (L.map(
             (r, i) =>
-              `<div class="card order"><div class="oh"><b>${i + 1}. ${esc(r.label)}</b><span class="tag ${r.cls}">${esc(r.status)}</span><span class="tag">${r.sub}</span><span class="muted">${esc(String(r.created).slice(5, 16))} · ${ago(r.created)}</span><b style="margin-left:auto">${fmt(r.total)}</b></div>${r.who ? `<div class="muted">${esc(r.who)}</div>` : ""}<ul class="oi">${r.items.map((it) => `<li>${esc(it.name)} × ${it.qty}</li>`).join("")}</ul></div>`,
+              `<div class="card order"><div class="oh"><b>${i + 1}. ${esc(r.label)}</b><span class="tag ${r.cls}">${esc(r.status)}</span><span class="tag">${r.sub}</span><span class="tag ${r.printed ? "" : "s-cooking"}">${r.printed ? "🖨 Chiqarilgan" : "Chek chiqarilmagan"}</span><span class="muted">${esc(String(r.created).slice(5, 16))} · ${ago(r.created)}</span><b style="margin-left:auto">${fmt(r.total)}</b></div>${r.who ? `<div class="muted">${esc(r.who)}</div>` : ""}<ul class="oi">${r.items.map((it) => `<li>${esc(it.name)} × ${it.qty}</li>`).join("")}</ul><div class="act"><button data-ap="${r.key}">🖨 Chek</button></div></div>`,
           ).join("") || '<p class="muted">Buyurtma yo\'q.</p>');
       }
-      $("#all").onclick = (e) => {
-        const b = e.target.closest("[data-af]");
-        if (!b) return;
-        allF = b.dataset.af;
-        allOrders();
+      const markPrinted = (r) =>
+        post(
+          r.src === "bot"
+            ? `/api/orders/${r.raw.id}/printed`
+            : `/api/zal/orders/${r.raw.id}/printed`,
+          "POST",
+        );
+      let printingAll = false;
+      $("#all").onclick = async (e) => {
+        const f = e.target.closest("[data-af]");
+        if (f) {
+          allF = f.dataset.af;
+          return allOrders();
+        }
+        const rowsNow = () => allRowsCache || [];
+        const one = e.target.closest("[data-ap]");
+        if (one) {
+          const r = rowsNow().find((x) => x.key === one.dataset.ap);
+          if (!r || printingAll) return;
+          try {
+            await printOrder(r.raw);
+            if (
+              confirm(
+                "Chek printerdan chiqdimi?\n\nOK: «Chiqarilgan» deb belgilanadi.\nBekor: belgilanmaydi (chop etmagan bo'lsangiz).",
+              )
+            ) {
+              await markPrinted(r);
+              toast("Chiqarilgan deb belgilandi");
+            }
+          } catch (err) {
+            toast("Xatolik yuz berdi");
+          }
+          return load();
+        }
+        if (e.target.closest("[data-aprintall]")) {
+          if (printingAll) return;
+          const list = rowsNow()
+            .filter((r) => !r.printed && !r.skip && allVisible.has(r.key))
+            .reverse(); // eng eskisidan boshlab: navbat tartibida
+          if (!list.length) return;
+          if (
+            !confirm(
+              `${list.length} ta chek eng eskisidan boshlab ketma-ket chop etiladi.\nHar biri chiqqach «Chiqarilgan» deb belgilanadi.\n\nBoshlaymizmi?`,
+            )
+          )
+            return;
+          printingAll = true;
+          let n = 0;
+          try {
+            for (const r of list) {
+              toast(`Chop etilmoqda: ${n + 1}/${list.length}`);
+              await printOrder(r.raw);
+              await markPrinted(r);
+              n++;
+            }
+            toast(`✅ ${n} ta chek chop etildi`);
+          } catch (err) {
+            toast(`Xatolik: ${n} ta chek chop etildi`);
+          } finally {
+            printingAll = false;
+            load();
+          }
+        }
       };
 
       function orders() {
@@ -1203,8 +1273,17 @@
           ).join("") || '<p class="muted">Buyurtma yo\'q.</p>');
       }
 
+      let loading = false;
       async function load() {
-        if (!authed) return;
+        if (!authed || loading) return;
+        loading = true;
+        try {
+          await loadInner();
+        } finally {
+          loading = false;
+        }
+      }
+      async function loadInner() {
         try {
           [S, U, O, M, Z, W, T, ZO, C, SH] = await Promise.all([
             api("/api/stats"),
@@ -1248,28 +1327,45 @@
           if (!$("#shop").contains(document.activeElement)) shopTab();
         } else if (document.activeElement.id !== "qs") users();
       }
-      $("#nav").onclick = (e) => {
-        const b = e.target.closest("button");
+      // Har bir bo'lim o'z manzilida: /dashboard, /all-orders, ...
+      const SLUG = {
+        dash: "dashboard",
+        all: "all-orders",
+        orders: "bot-orders",
+        users: "customers",
+        menu: "menu",
+        zones: "zones",
+        zal: "hall",
+        couriers: "couriers",
+        shop: "hours",
+      };
+      const tabFromPath = () => {
+        const sl = location.pathname.replace(/^\/+|\/+$/g, "");
+        return Object.keys(SLUG).find((k) => SLUG[k] === sl) || "dash";
+      };
+      function setTab(t, push) {
+        const b = $("#nav").querySelector(`[data-t="${t}"]`);
         if (!b) return;
-        tab = b.dataset.t;
+        tab = t;
         $("#ptitle").textContent = b.querySelector("span").textContent;
         if (!wide()) setSide(false);
         [...$("#nav").children].forEach((x) =>
           x.classList.toggle("on", x === b),
         );
-        [
-          "dash",
-          "all",
-          "orders",
-          "users",
-          "menu",
-          "zones",
-          "zal",
-          "couriers",
-          "shop",
-        ].forEach((t) => ($("#" + t).hidden = t !== tab));
+        Object.keys(SLUG).forEach((k) => ($("#" + k).hidden = k !== tab));
+        try {
+          const url = "/" + SLUG[t];
+          if (push === "replace") history.replaceState({ t }, "", url);
+          else if (push && location.pathname !== url)
+            history.pushState({ t }, "", url);
+        } catch (e) {}
         load();
+      }
+      $("#nav").onclick = (e) => {
+        const b = e.target.closest("button");
+        if (b) setTab(b.dataset.t, true);
       };
+      addEventListener("popstate", () => setTab(tabFromPath(), false));
       $("#orders").onclick = async (e) => {
         const f = e.target.closest("[data-f]");
         if (f) {
@@ -2192,7 +2288,7 @@
           }
           $("#login").hidden = true;
           authed = true;
-          load();
+          setTab(tabFromPath(), "replace");
         } catch (err) {
           $("#lerr").textContent = "Server bilan aloqa yo'q.";
         } finally {
@@ -2208,8 +2304,20 @@
         } catch (e) {}
         showLogin();
       };
-      load();
-      setInterval(load, 15000);
+      // Kirmagan bo'lsa, boshqa so'rovlar yuborilmaydi (konsolda 401 xatolari chiqmaydi)
+      (async () => {
+        try {
+          const d = await (await fetch("/api/admin/session")).json();
+          if (!d.ok) return showLogin();
+        } catch (e) {}
+        setTab(tabFromPath(), "replace");
+      })();
+      setInterval(() => {
+        if (!document.hidden) load();
+      }, 15000);
+      document.addEventListener("visibilitychange", () => {
+        if (!document.hidden) load();
+      });
     </script>
   </body>
 </html>
