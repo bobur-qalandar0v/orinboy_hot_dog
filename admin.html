@@ -1142,7 +1142,7 @@
             skip: o.status === "cancelled",
             status: ST[o.status] || o.status,
             cls: "s-" + o.status,
-            who: `${o.name || "Noma'lum"}${o.phone ? " · " + o.phone : ""}${o.zone ? " · 🛵 " + o.zone : ""}`,
+            who: [`${o.name || "Noma'lum"}${o.phone ? " · " + o.phone : ""}${o.zone ? " · 🛵 " + o.zone : ""}`],
             sub: o.pay === "card" ? "💳 Karta" : "💵 Naqd",
           })),
           ...ZO.map((o) => {
@@ -1160,11 +1160,11 @@
               skip: false,
               status: o.status === "open" ? "Ochiq" : "Yopilgan",
               cls: o.status === "open" ? "s-cooking" : "s-completed",
-              who: `${tk && o.customer ? "Mijoz: " + o.customer + " · " : ""}${o.waiter ? "👤 " + o.waiter : ""}`,
+              who: [tk && o.customer ? "Mijoz: " + o.customer : "", o.waiter ? "👤 Ofitsant: " + o.waiter : ""].filter(Boolean),
               sub: "💵 Zal",
             };
           }),
-        ].sort((a, b) => (a.created < b.created ? 1 : a.created > b.created ? -1 : 0));
+        ].sort((a, b) => (a.created < b.created ? -1 : a.created > b.created ? 1 : 0));
         const F = [
           ["all", "Hammasi", () => true],
           ["active", "Faol", (r) => r.active],
@@ -1173,7 +1173,7 @@
           ["take", "🥡 Saboy", (r) => r.src === "take"],
         ];
         const cur = F.find((f) => f[0] === allF) || F[0];
-        const L = rowsAll.filter(cur[2]).slice(0, 200);
+        const L = rowsAll.filter(cur[2]).slice(-200); // eng eskisi birinchi, oxirgi 200 tasi
         allRowsCache = rowsAll;
         allVisible = new Set(L.map((r) => r.key));
         const todo = L.filter((r) => !r.printed && !r.skip).length;
@@ -1182,7 +1182,7 @@
           `<div class="chips">${F.map(([k, l, fn]) => `<button data-af="${k}" class="${allF === k ? "on" : ""}">${l} (${rowsAll.filter(fn).length})</button>`).join("")}</div>` +
           (L.map(
             (r, i) =>
-              `<div class="card order"><div class="oh"><b>${i + 1}. ${esc(r.label)}</b><span class="tag ${r.cls}">${esc(r.status)}</span><span class="tag">${r.sub}</span><span class="tag ${r.printed ? "" : "s-cooking"}">${r.printed ? "🖨 Chiqarilgan" : "Chek chiqarilmagan"}</span><span class="muted">${esc(String(r.created).slice(5, 16))} · ${ago(r.created)}</span><b style="margin-left:auto">${fmt(r.total)}</b></div>${r.who ? `<div class="muted">${esc(r.who)}</div>` : ""}<ul class="oi">${r.items.map((it) => `<li>${esc(it.name)} × ${it.qty}</li>`).join("")}</ul><div class="act"><button data-ap="${r.key}">🖨 Chek</button></div></div>`,
+              `<div class="card order"><div class="oh"><b>${i + 1}. ${esc(r.label)}</b><span class="tag ${r.cls}">${esc(r.status)}</span><span class="tag">${r.sub}</span><span class="tag ${r.printed ? "" : "s-cooking"}">${r.printed ? "🖨 Chiqarilgan" : "Chek chiqarilmagan"}</span><span class="muted">${esc(String(r.created).slice(5, 16))} · ${ago(r.created)}</span><b style="margin-left:auto">${fmt(r.total)}</b></div>${r.who.map((w) => `<div class="muted">${esc(w)}</div>`).join("")}<ul class="oi">${r.items.map((it) => `<li>${esc(it.name)} × ${it.qty}</li>`).join("")}</ul><div class="act"><button data-ap="${r.key}">🖨 Chek</button></div></div>`,
           ).join("") || '<p class="muted">Buyurtma yo\'q.</p>');
       }
       const markPrinted = (r) =>
@@ -1223,7 +1223,7 @@
           if (printingAll) return;
           const list = rowsNow()
             .filter((r) => !r.printed && !r.skip && allVisible.has(r.key))
-            .reverse(); // eng eskisidan boshlab: navbat tartibida
+            ; // ro'yxat allaqachon eng eskisidan boshlab: navbat tartibida
           if (!list.length) return;
           if (
             !confirm(
