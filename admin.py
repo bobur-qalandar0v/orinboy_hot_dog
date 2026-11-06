@@ -117,6 +117,10 @@ def bonus_item(db, name, subtotal):
     return {"id": "bonus", "name": "🎁 " + name + " (bonus)", "qty": 1, "price": 0}
 
 
+# Admin panel bo'limlari: har biri o'z manzilida ochiladi (sahifa bitta, bo'limni brauzer o'zi tanlaydi)
+ADMIN_PAGES = ("dashboard", "all-orders", "bot-orders", "customers", "menu", "zones", "hall", "couriers", "hours")
+
+
 def shop_status(db):
     """Botdan buyurtma qabul qilish ochiqmi? (Toshkent vaqti; ish vaqti yarim tundan o'tishi mumkin: 18:00–02:00)."""
     s = {k: get_setting(db, k) for k in DEFAULT_SHOP}
@@ -252,7 +256,8 @@ def make_app(db, bot, password, kb_for):
     async def auth(request, handler):
         if (request.method == "GET" and request.path in ("/api/menu", "/api/zones", "/api/status")) or request.path in ("/waiter", "/courier") \
                 or request.path.startswith(("/api/w/", "/api/c/", "/img/")) \
-                or request.path in ("/", "/api/admin/login", "/api/admin/logout"):
+                or request.path in ("/", "/api/admin/login", "/api/admin/logout", "/api/admin/session") \
+                or (request.method == "GET" and request.path.strip("/") in ADMIN_PAGES):
             return await handler(request)  # ochiq yo'llar (maxfiy ma'lumot yo'q)
         if not valid_session(request):
             return web.json_response({"error": "login"}, status=401)
@@ -290,6 +295,10 @@ def make_app(db, bot, password, kb_for):
 
     async def index(request):
         return web.FileResponse(HTML_PATH)
+
+    async def admin_session(request):
+        """Kirilganmi? Har doim 200 qaytaradi: kirmagan paytda brauzer konsolida 401 xatolari to'planmasin."""
+        return web.json_response({"ok": bool(valid_session(request))})
 
     async def stats(request):
         orders = rows("SELECT created, items, total, pay FROM orders WHERE status != 'cancelled'")
@@ -575,6 +584,8 @@ def make_app(db, bot, password, kb_for):
     app = web.Application(middlewares=[auth], client_max_size=2 * 1024 * 1024)
     app.add_routes([
         web.get("/", index),
+        web.get("/api/admin/session", admin_session),
+        *[web.get("/" + pg, index) for pg in ADMIN_PAGES],
         web.post("/api/admin/login", admin_login),
         web.post("/api/admin/logout", admin_logout),
         web.get("/api/stats", stats),
