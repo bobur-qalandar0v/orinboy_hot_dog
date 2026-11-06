@@ -146,7 +146,7 @@ $("go").onclick = () => {
     if (G) G.from("#summary .row", { x: -24, opacity: 0, stagger: .07, duration: .4, delay: .1, ease: "power2.out" });
 };
 $("back").onclick = () => show("menu");
-$("again").onclick = () => { for (const k in cart) { delete cart[k]; upd(k); } show("menu"); };
+$("again").onclick = () => { draftClear(); for (const k in cart) { delete cart[k]; upd(k); } show("menu"); };
 $("send").onclick = () => {
     if (!SHOP.open) { $("err").textContent = SHOP.message || "Hozir buyurtma qabul qilinmaydi."; return; }
     const zn = ZONES.find(x => x.id === zone);
@@ -162,6 +162,7 @@ $("send").onclick = () => {
         if (b.disabled) return;           // ikki marta bosishdan himoya
         b.disabled = true; b.setAttribute("aria-busy", "true"); b.textContent = "Yuborilmoqda…";
         setTimeout(() => { b.disabled = false; b.removeAttribute("aria-busy"); b.textContent = "Buyurtmani yuborish"; }, 8000);
+        draftClear();
         tg.sendData(JSON.stringify(order));
     } else { console.log(order); show("done"); }
 };
@@ -209,3 +210,32 @@ if (EDIT) {
     $("editbar").hidden = false; $("editbar").textContent = "✏️ Buyurtma #" + EDIT + " tahrirlanmoqda";
     $("send").textContent = "O'zgarishlarni saqlash";
 }
+
+// Savat yo'qolmasin: sahifa yangilansa yoki ilova qayta ochilsa, tanlangan narsalar saqlanib qoladi
+const DRAFT = "orinboy_draft_v1";
+const draftGet = () => { try { return JSON.parse(localStorage.getItem(DRAFT) || "null"); } catch (e) { return null; } };
+const draftClear = () => { try { localStorage.removeItem(DRAFT); } catch (e) { } };
+function draftSave() {
+    if (EDIT) return;                                   // tahrirlashda mavjud buyurtma ishlatiladi
+    try {
+        if (!count()) return draftClear();
+        localStorage.setItem(DRAFT, JSON.stringify({ t: Date.now(), cart, zone, pay, note: $("note").value, bonus: bonusSel }));
+    } catch (e) { }
+}
+if (!EDIT) {
+    const d = draftGet();
+    if (d && Date.now() - d.t < 24 * 3600 * 1000) {
+        for (const id in d.cart || {}) { const n = +d.cart[id]; if (n > 0 && n <= 50 && MENU.some(m => m.id === id && !m.sold)) { cart[id] = n; upd(id); } }
+        if (d.zone && ZONES.some(x => x.id === d.zone)) { zone = d.zone; renderZones(); }
+        if (d.pay === "card" || d.pay === "cash") { const pb = $("pay").querySelector(`[data-p="${d.pay}"]`); if (pb) pb.click(); }
+        if (d.note) $("note").value = String(d.note).slice(0, 200);
+        if (d.bonus) bonusSel = String(d.bonus);
+        renderSummary();
+    } else if (d) draftClear();
+}
+let draftT = 0;
+const draftLater = () => { clearTimeout(draftT); draftT = setTimeout(draftSave, 150); };
+document.addEventListener("click", draftLater, true);
+document.addEventListener("input", draftLater, true);
+document.addEventListener("visibilitychange", draftSave);
+addEventListener("pagehide", draftSave);
