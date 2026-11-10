@@ -545,7 +545,16 @@ def kb_for(uid):
         params["z"] = zid
     if order:
         params["e"] = order["id"]
-        params["c"] = ",".join(f"{i['id']}:{i['qty']}" for i in order["items"] if i["id"] != "bonus")
+        cnt, pat = {}, {}
+        for i in order["items"]:
+            if i["id"] == "bonus":
+                continue
+            cnt[i["id"]] = cnt.get(i["id"], 0) + i["qty"]
+            if i.get("patir"):
+                pat[i["id"]] = pat.get(i["id"], 0) + i["qty"]
+        params["c"] = ",".join(f"{k}:{v}" for k, v in cnt.items())
+        if pat:
+            params["p"] = ",".join(f"{k}:{v}" for k, v in pat.items())
     sep = "&" if "?" in WEBAPP_URL else "?"
     app = WebAppInfo(url=WEBAPP_URL + sep + urlencode(params))
     if order:
@@ -691,7 +700,7 @@ async def on_order(message: Message):
         elif m["sold"]:
             soldout.append(m["name"])
         else:
-            items.append({"id": m["id"], "name": m["name"], "qty": qty, "price": m["price"]})
+            items.extend(admin.bread_lines(m, qty, it.get("patir")))
     if soldout or bad or not items:
         msg = "Kechirasiz, buyurtmani qabul qilib bo'lmadi."
         if soldout:
