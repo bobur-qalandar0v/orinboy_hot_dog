@@ -1280,11 +1280,12 @@ def err(msg, status=400):
     return web.json_response({"error": msg}, status=status)
 
 
-PATIR = " 🥖 patirda"
+PATIR = " 🥖 patirga"
+PATIR_OLD = " 🥖 patirda"   # eski buyurtmalar nomi (statistikada birlashtirish uchun)
 
 
 def bread_lines(m, qty, patir):
-    """Taom qatori: oddiy bulochkadagi va patirdagi qismi alohida qatorga ajratiladi (narx bir xil).
+    """Taom qatori: oddiy bulochkadagi va patirga pishadigan qismi alohida qatorga ajratiladi (narx bir xil).
     Ichimliklarga patir qo'llanmaydi."""
     try:
         p = int(patir or 0)

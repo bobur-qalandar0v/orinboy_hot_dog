@@ -1417,7 +1417,7 @@
       };
 
       // ---------- yuborish ----------
-      // Patir: har bir taomdan nechtasi patirda pishsin (ichimliklarga tegishli emas)
+      // Patir: har bir taomdan nechtasi patirga pishsin (ichimliklarga tegishli emas)
       let patirW = {};
       const hasBread = (m) => !/ichimlik/i.test(m.cat || "");
       const pqW = (id) => Math.max(0, Math.min(patirW[id] || 0, cart[id] || 0));
@@ -1428,7 +1428,7 @@
               (m) =>
                 `<div class="row2"><span>${esc(m.name)} × ${cart[m.id]}</span><b>${fmt(m.price * cart[m.id])}</b></div>` +
                 (hasBread(m)
-                  ? `<div class="row2 pat"><span>🥖 Patirda <small>(qolgani bulochkada)</small></span><span class="pst"><button type="button" data-wp="${m.id}" data-d="-1">−</button><b>${pqW(m.id)}</b><button type="button" data-wp="${m.id}" data-d="1">+</button></span></div>`
+                  ? `<div class="row2 pat"><span>🥖 Patirga <small>(qolgani bulochkada)</small></span><span class="pst"><button type="button" data-wp="${m.id}" data-d="-1">−</button><b>${pqW(m.id)}</b><button type="button" data-wp="${m.id}" data-d="1">+</button></span></div>`
                   : ""),
             )
             .join("") +
