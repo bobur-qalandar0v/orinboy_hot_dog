@@ -337,6 +337,21 @@
         outline: 2px solid currentColor;
         font-weight: 700;
       }
+      .row2.pat {
+        font-size: 14px;
+      }
+      .pst {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .pst button {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        font-size: 20px;
+        line-height: 1;
+      }
       .spin {
         display: inline-block;
         width: 1em;
@@ -996,6 +1011,7 @@
           localStorage.removeItem("wt");
         } catch (e) {}
         cart = {};
+        patirW = {};
         view("auth");
       }
       $("#logout").onclick = logout;
@@ -1310,6 +1326,7 @@
         }
         cur = t;
         cart = {};
+        patirW = {};
         try {
           MENU = await api("/api/menu");
         } catch (e) {
@@ -1393,21 +1410,39 @@
           return;
         const tk = cur && cur.takeaway;
         cart = {};
+        patirW = {};
         view("tables");
         if (tk) setWtab("s");
         loadTables();
       };
 
       // ---------- yuborish ----------
-      $("#review").onclick = () => {
+      // Patir: har bir taomdan nechtasi patirda pishsin (ichimliklarga tegishli emas)
+      let patirW = {};
+      const hasBread = (m) => !/ichimlik/i.test(m.cat || "");
+      const pqW = (id) => Math.max(0, Math.min(patirW[id] || 0, cart[id] || 0));
+      function renderDcl() {
         $("#dcl").innerHTML =
           MENU.filter((m) => cart[m.id])
             .map(
               (m) =>
-                `<div class="row2"><span>${esc(m.name)} × ${cart[m.id]}</span><b>${fmt(m.price * cart[m.id])}</b></div>`,
+                `<div class="row2"><span>${esc(m.name)} × ${cart[m.id]}</span><b>${fmt(m.price * cart[m.id])}</b></div>` +
+                (hasBread(m)
+                  ? `<div class="row2 pat"><span>🥖 Patirda <small>(qolgani bulochkada)</small></span><span class="pst"><button type="button" data-wp="${m.id}" data-d="-1">−</button><b>${pqW(m.id)}</b><button type="button" data-wp="${m.id}" data-d="1">+</button></span></div>`
+                  : ""),
             )
             .join("") +
           `<div class="row2" style="font-size:19px"><b>Jami</b><b>${fmt(total())}</b></div>`;
+      }
+      $("#dcl").onclick = (e) => {
+        const b = e.target.closest("[data-wp]");
+        if (!b) return;
+        const id = b.dataset.wp;
+        patirW[id] = Math.max(0, Math.min(cart[id] || 0, pqW(id) + Number(b.dataset.d)));
+        renderDcl();
+      };
+      $("#review").onclick = () => {
+        renderDcl();
         const tk = !!cur.takeaway;
         renderBonus();
         $("#cbox").hidden = !tk;
@@ -1454,7 +1489,7 @@
         btn.disabled = true;
         try {
           const tk = !!cur.takeaway,
-            items = Object.entries(cart).map(([id, qty]) => ({ id, qty }));
+            items = Object.entries(cart).map(([id, qty]) => ({ id, qty, patir: pqW(id) }));
           await api(tk ? "/api/w/takeaway" : "/api/w/orders", {
             method: "POST",
             body: JSON.stringify(
@@ -1478,6 +1513,7 @@
           $("#note").value = "";
           $("#cust").value = "";
           cart = {};
+        patirW = {};
           toast(
             tk
               ? "✅ Saboy buyurtma oshxonaga yuborildi"
@@ -1493,6 +1529,7 @@
             setTimeout(() => {
               $("#dc").close();
               cart = {};
+        patirW = {};
               view("tables");
               loadTables();
             }, 1600);

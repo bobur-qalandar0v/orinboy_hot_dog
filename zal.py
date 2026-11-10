@@ -1280,6 +1280,27 @@ def err(msg, status=400):
     return web.json_response({"error": msg}, status=status)
 
 
+PATIR = " 🥖 patirda"
+
+
+def bread_lines(m, qty, patir):
+    """Taom qatori: oddiy bulochkadagi va patirdagi qismi alohida qatorga ajratiladi (narx bir xil).
+    Ichimliklarga patir qo'llanmaydi."""
+    try:
+        p = int(patir or 0)
+    except (TypeError, ValueError):
+        p = 0
+    if "ichimlik" in str(m.get("cat", "")).lower():
+        p = 0
+    p = max(0, min(qty, p))
+    out = []
+    if qty - p > 0:
+        out.append({"id": m["id"], "name": m["name"], "qty": qty - p, "price": m["price"]})
+    if p > 0:
+        out.append({"id": m["id"], "name": m["name"] + PATIR, "qty": p, "price": m["price"], "patir": True})
+    return out
+
+
 def add_routes(app, db, now, get_menu, guard, shop_status=None, bonus_config=None):
     def rows(sql, args=()):
         cur = db.execute(sql, args)
@@ -1331,7 +1352,7 @@ def add_routes(app, db, now, get_menu, guard, shop_status=None, bonus_config=Non
                 return None, err("Menyu o'zgargan. Sahifani yangilab, qaytadan tanlang.")
             if m["sold"]:
                 return None, err(f"«{m['name']}» hozircha tugagan.", 409)
-            items.append({"id": m["id"], "name": m["name"], "qty": qty, "price": m["price"]})
+            items.extend(bread_lines(m, qty, it.get("patir")))
         if not items:
             return None, err("Buyurtma bo'sh.")
         return items, None

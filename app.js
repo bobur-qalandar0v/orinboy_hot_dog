@@ -80,6 +80,10 @@ function show(v) {
     if (v === "done" && G) G.fromTo("#ck", { strokeDashoffset: 60 }, { strokeDashoffset: 0, duration: .7, delay: .25, ease: "power2.out" });
 }
 const ts = { v: 0 };
+// Patir: har bir taomdan nechtasi bulochkada emas, patirda pishsin (ichimliklarga tegishli emas)
+const patir = {};
+const hasBread = m => !/ichimlik/i.test(m.cat || "");
+const pq = id => Math.max(0, Math.min(patir[id] || 0, cart[id] || 0));
 let bonusSel = "";
 function renderBonus() {
     const B = SHOP.bonus || { min: 0, items: [] }, box = $("bonusbox"), sub = total();
@@ -90,10 +94,17 @@ function renderBonus() {
     box.innerHTML = `<b>🎁 Bonus: bittasini tanlang (bepul)</b>` + B.items.map(n => `<button type="button" class="bopt${n === bonusSel ? " on" : ""}" data-b="${n.replace(/"/g, "&quot;")}">${n === bonusSel ? "✅ " : ""}${n.replace(/</g, "&lt;")}</button>`).join("");
 }
 $("bonusbox").onclick = e => { const b = e.target.closest(".bopt"); if (!b) return; bonusSel = bonusSel === b.dataset.b ? "" : b.dataset.b; renderBonus(); };
+$("summary").addEventListener("click", e => {
+    const b = e.target.closest("[data-pm]"); if (!b) return;
+    const id = b.dataset.pm; patir[id] = Math.max(0, Math.min(cart[id] || 0, pq(id) + Number(b.dataset.d)));
+    if (!patir[id]) delete patir[id];
+    renderSummary();
+});
 function renderSummary() {
     renderBonus();
     const z = ZONES.find(x => x.id === zone), fee = z ? z.fee : 0, t = total() + fee;
-    $("summary").innerHTML = MENU.filter(m => cart[m.id]).map(m => `<div class="row"><span>${m.name}${m.desc && /Standart|Katta/.test(m.desc) ? " (" + m.desc.toLowerCase() + ")" : ""} × ${cart[m.id]}</span><b>${fmt(m.price * cart[m.id])}</b></div>`).join("")
+    $("summary").innerHTML = MENU.filter(m => cart[m.id]).map(m => `<div class="row"><span>${m.name}${m.desc && /Standart|Katta/.test(m.desc) ? " (" + m.desc.toLowerCase() + ")" : ""} × ${cart[m.id]}</span><b>${fmt(m.price * cart[m.id])}</b></div>`
+        + (hasBread(m) ? `<div class="row patir"><span>🥖 Patirda <small>(qolgani oddiy bulochkada)</small></span><span class="pst"><button type="button" data-pm="${m.id}" data-d="-1" aria-label="Patirni kamaytirish">−</button><b>${pq(m.id)}</b><button type="button" data-pm="${m.id}" data-d="1" aria-label="Patirni ko'paytirish">+</button></span></div>` : "")).join("")
         + (z ? `<div class="row"><span>${z.pickup ? "Olib ketish" : "Yetkazib berish"}</span><b>${z.pickup ? "bepul" : fmt(fee)}</b></div>` : "")
         + `<div class="row" style="font-size:20px"><b>Jami</b><b>${fmt(t)}</b></div>`;
     $("topl").textContent = z ? "Umumiy summa" : "Umumiy summa (yetkazishsiz)";
@@ -146,7 +157,7 @@ $("go").onclick = () => {
     if (G) G.from("#summary .row", { x: -24, opacity: 0, stagger: .07, duration: .4, delay: .1, ease: "power2.out" });
 };
 $("back").onclick = () => show("menu");
-$("again").onclick = () => { draftClear(); for (const k in cart) { delete cart[k]; upd(k); } show("menu"); };
+$("again").onclick = () => { draftClear(); for (const k in patir) delete patir[k]; for (const k in cart) { delete cart[k]; upd(k); } show("menu"); };
 $("send").onclick = () => {
     if (!SHOP.open) { $("err").textContent = SHOP.message || "Hozir buyurtma qabul qilinmaydi."; return; }
     const zn = ZONES.find(x => x.id === zone);
@@ -155,7 +166,7 @@ $("send").onclick = () => {
     $("err").textContent = "";
     const order = {
         address, zone, comment: $("note").value.trim(), pay, edit: EDIT, total: total(), bonus: bonusSel,
-        items: MENU.filter(m => cart[m.id]).map(m => ({ id: m.id, name: m.name + (/Standart|Katta/.test(m.desc) ? " (" + m.desc.toLowerCase() + ")" : ""), qty: cart[m.id], price: m.price }))
+        items: MENU.filter(m => cart[m.id]).map(m => ({ id: m.id, name: m.name + (/Standart|Katta/.test(m.desc) ? " (" + m.desc.toLowerCase() + ")" : ""), qty: cart[m.id], price: m.price, patir: hasBread(m) ? pq(m.id) : 0 }))
     };
     if (tg && tg.sendData) {
         const b = $("send");
@@ -207,6 +218,7 @@ if (!SHOP.open) { $("closedbar").hidden = false; $("closedbar").textContent = SH
 // Tahrirlash rejimi: mavjud buyurtma savatga oldindan yuklanadi
 if (EDIT) {
     for (const part of (P.get("c") || "").split(",")) { const [id, n] = part.split(":"); if (MENU.some(m => m.id === id && !m.sold) && +n > 0) { cart[id] = +n; upd(id); } }
+    for (const part of (P.get("p") || "").split(",")) { const [id, n] = part.split(":"); if (cart[id] && +n > 0) patir[id] = Math.min(+n, cart[id]); }
     $("editbar").hidden = false; $("editbar").textContent = "✏️ Buyurtma #" + EDIT + " tahrirlanmoqda";
     $("send").textContent = "O'zgarishlarni saqlash";
 }
@@ -219,7 +231,7 @@ function draftSave() {
     if (EDIT) return;                                   // tahrirlashda mavjud buyurtma ishlatiladi
     try {
         if (!count()) return draftClear();
-        localStorage.setItem(DRAFT, JSON.stringify({ t: Date.now(), cart, zone, pay, note: $("note").value, bonus: bonusSel }));
+        localStorage.setItem(DRAFT, JSON.stringify({ t: Date.now(), cart, zone, pay, note: $("note").value, bonus: bonusSel, patir }));
     } catch (e) { }
 }
 if (!EDIT) {
@@ -230,6 +242,7 @@ if (!EDIT) {
         if (d.pay === "card" || d.pay === "cash") { const pb = $("pay").querySelector(`[data-p="${d.pay}"]`); if (pb) pb.click(); }
         if (d.note) $("note").value = String(d.note).slice(0, 200);
         if (d.bonus) bonusSel = String(d.bonus);
+        for (const id in d.patir || {}) { const n = +d.patir[id]; if (n > 0 && cart[id]) patir[id] = Math.min(n, cart[id]); }
         renderSummary();
     } else if (d) draftClear();
 }
