@@ -172,8 +172,8 @@ $("send").onclick = () => {
         const b = $("send");
         if (b.disabled) return;           // ikki marta bosishdan himoya
         b.disabled = true; b.setAttribute("aria-busy", "true"); b.textContent = "Yuborilmoqda…";
-        setTimeout(() => { b.disabled = false; b.removeAttribute("aria-busy"); b.textContent = "Buyurtmani yuborish"; }, 8000);
-        draftClear();
+        setTimeout(() => { b.disabled = false; b.removeAttribute("aria-busy"); b.textContent = "Buyurtmani yuborish"; draftOff = false; }, 8000);
+        draftOff = true; clearTimeout(draftT); draftClear();
         tg.sendData(JSON.stringify(order));
     } else { console.log(order); show("done"); }
 };
@@ -227,8 +227,9 @@ if (EDIT) {
 const DRAFT = "orinboy_draft_v1";
 const draftGet = () => { try { return JSON.parse(localStorage.getItem(DRAFT) || "null"); } catch (e) { return null; } };
 const draftClear = () => { try { localStorage.removeItem(DRAFT); } catch (e) { } };
+let draftOff = false;   // buyurtma yuborilgach, ilova yopilayotganda savat qayta saqlanmasin
 function draftSave() {
-    if (EDIT) return;                                   // tahrirlashda mavjud buyurtma ishlatiladi
+    if (EDIT || draftOff) return;                                   // tahrirlashda mavjud buyurtma ishlatiladi
     try {
         if (!count()) return draftClear();
         localStorage.setItem(DRAFT, JSON.stringify({ t: Date.now(), cart, zone, pay, note: $("note").value, bonus: bonusSel, patir }));
