@@ -80,7 +80,7 @@ function show(v) {
     if (v === "done" && G) G.fromTo("#ck", { strokeDashoffset: 60 }, { strokeDashoffset: 0, duration: .7, delay: .25, ease: "power2.out" });
 }
 const ts = { v: 0 };
-// Patir: har bir taomdan nechtasi bulochkada emas, patirda pishsin (ichimliklarga tegishli emas)
+// Patir: har bir taomdan nechtasi bulochkada emas, patirga pishsin (ichimliklarga tegishli emas)
 const patir = {};
 const hasBread = m => !/ichimlik/i.test(m.cat || "");
 const pq = id => Math.max(0, Math.min(patir[id] || 0, cart[id] || 0));
@@ -104,7 +104,7 @@ function renderSummary() {
     renderBonus();
     const z = ZONES.find(x => x.id === zone), fee = z ? z.fee : 0, t = total() + fee;
     $("summary").innerHTML = MENU.filter(m => cart[m.id]).map(m => `<div class="row"><span>${m.name}${m.desc && /Standart|Katta/.test(m.desc) ? " (" + m.desc.toLowerCase() + ")" : ""} × ${cart[m.id]}</span><b>${fmt(m.price * cart[m.id])}</b></div>`
-        + (hasBread(m) ? `<div class="row patir"><span>🥖 Patirda <small>(qolgani oddiy bulochkada)</small></span><span class="pst"><button type="button" data-pm="${m.id}" data-d="-1" aria-label="Patirni kamaytirish">−</button><b>${pq(m.id)}</b><button type="button" data-pm="${m.id}" data-d="1" aria-label="Patirni ko'paytirish">+</button></span></div>` : "")).join("")
+        + (hasBread(m) ? `<div class="row patir"><span>🥖 Patirga <small>(qolgani oddiy bulochkada)</small></span><span class="pst"><button type="button" data-pm="${m.id}" data-d="-1" aria-label="Patirni kamaytirish">−</button><b>${pq(m.id)}</b><button type="button" data-pm="${m.id}" data-d="1" aria-label="Patirni ko'paytirish">+</button></span></div>` : "")).join("")
         + (z ? `<div class="row"><span>${z.pickup ? "Olib ketish" : "Yetkazib berish"}</span><b>${z.pickup ? "bepul" : fmt(fee)}</b></div>` : "")
         + `<div class="row" style="font-size:20px"><b>Jami</b><b>${fmt(t)}</b></div>`;
     $("topl").textContent = z ? "Umumiy summa" : "Umumiy summa (yetkazishsiz)";
