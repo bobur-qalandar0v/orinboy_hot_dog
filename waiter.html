@@ -749,7 +749,7 @@
       </div>
       <p class="muted2" id="ghint"></p>
       <div id="cbox" hidden>
-        <label for="cust">Mijoz ismi yoki telefon raqami (ixtiyoriy)</label
+        <label for="cust">Mijoz ismi yoki telefon raqami (majburiy)</label
         ><input
           id="cust"
           maxlength="40"
@@ -1501,6 +1501,16 @@
         try {
           const tk = !!cur.takeaway,
             items = Object.entries(cart).map(([id, qty]) => ({ id, qty, patir: pqW(id) }));
+          if (tk) {
+            const cv = $("#cust").value.trim(),
+              dg = cv.replace(/\D/g, "");
+            if (cv.length < 2 || (/^[+\d\s()-]+$/.test(cv) && dg.length < 9)) {
+              toast("Mijoz ismini yoki telefon raqamini yozing");
+              $("#cust").focus();
+              btn.disabled = false;
+              return;
+            }
+          }
           await api(tk ? "/api/w/takeaway" : "/api/w/orders", {
             method: "POST",
             body: JSON.stringify(

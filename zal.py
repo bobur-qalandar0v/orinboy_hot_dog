@@ -1504,9 +1504,12 @@ def add_routes(app, db, now, get_menu, guard, shop_status=None, bonus_config=Non
         items, bad = read_items(d)
         if bad:
             return bad
+        customer = re.sub(r"\s+", " ", str(d.get("customer", ""))).strip()[:40]
+        is_phone = bool(re.fullmatch(r"[+\d\s()-]+", customer))
+        if len(customer) < 2 or (is_phone and len(re.sub(r"\D", "", customer)) < 9):
+            return err("Saboy uchun mijoz ismini yoki telefon raqamini yozing (raqam bo'lsa 9 ta raqam).")
         add_bonus(d, items, 0)
         total = sum(i["price"] * i["qty"] for i in items)
-        customer = str(d.get("customer", "")).strip()[:40]
         # Kunlik tartib raqami: smena yarim tundan o'tadi (18:00–02:00), shuning uchun kun soat 06:00 da almashadi
         shift = (now() - timedelta(hours=6)).strftime("%Y-%m-%d") + " 06:00:00"
         number = db.execute("SELECT COUNT(*) FROM zal_orders WHERE kind='takeaway' AND created >= ?",
