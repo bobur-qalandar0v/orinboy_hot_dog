@@ -85,7 +85,7 @@ def tashkent_now():
 
 
 DEFAULT_SHOP = {"open_time": "18:00", "close_time": "02:00", "mode": "auto", "until": "", "note": "",
-                "operator_phone": "", "bonus_min": "0", "bonus_items": ""}
+                "operator_phone": "", "bonus_min": "0", "bonus_items": "", "patir_stock": ""}
 
 
 def get_setting(db, key):
@@ -97,6 +97,25 @@ def set_setting(db, key, value):
     db.execute("INSERT INTO settings(key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
                (key, value))
     db.commit()
+
+
+def patir_left(db):
+    """Qolgan patir soni; None: hisoblanmaydi (admin son kiritmagan, cheklov yo'q)."""
+    v = str(get_setting(db, "patir_stock") or "").strip()
+    return int(v) if v.isdigit() else None
+
+
+def patir_count(items):
+    return sum(int(i.get("qty", 0)) for i in items if i.get("patir"))
+
+
+def patir_change(db, delta):
+    """delta < 0: patir ayiriladi, delta > 0: qaytariladi (bekor qilingan buyurtma). Commit chaqiruvchida."""
+    left = patir_left(db)
+    if left is None or not delta:
+        return
+    db.execute("INSERT INTO settings(key, value) VALUES ('patir_stock', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+               (str(max(0, left + delta)),))
 
 
 def bonus_config(db):
@@ -370,13 +389,15 @@ def make_app(db, bot, password, kb_for):
 
     async def change(oid, status):
         """Buyurtma holatini o'zgartiradi, mijozga xabar yuboradi (admin ham, dastavchik ham shuni ishlatadi)."""
-        row = db.execute("SELECT uid, status FROM orders WHERE id=?", (oid,)).fetchone()
+        row = db.execute("SELECT uid, status, items FROM orders WHERE id=?", (oid,)).fetchone()
         if not row:
             raise ValueError("Buyurtma topilmadi")
         if status not in FLOW.get(row[1], []):
             raise ValueError("Bu holatga o'tib bo'lmaydi")
         uid = row[0]
         db.execute("UPDATE orders SET status=? WHERE id=?", (status, oid))
+        if status == "cancelled":  # bekor qilingan buyurtmadagi patir omborga qaytadi
+            patir_change(db, patir_count(json.loads(row[2] or "[]")))
         if status in ("done", "completed", "cancelled"):
             db.execute("DELETE FROM pending WHERE uid=?", (uid,))
         db.commit()
@@ -519,7 +540,7 @@ def make_app(db, bot, password, kb_for):
     async def status_public(request):
         st = shop_status(db)
         return web.json_response({"open": st["open"], "hours": st["hours"], "note": st["note"],
-                                  "bonus": bonus_config(db),
+                                  "bonus": bonus_config(db), "patir": patir_left(db),
                                   "message": "" if st["open"] else closed_message(st)},
                                  headers={"Access-Control-Allow-Origin": "*", "Cache-Control": "no-store"})
 
@@ -536,6 +557,11 @@ def make_app(db, bot, password, kb_for):
             if raw and not (len(raw) == 12 and raw.startswith("998")):
                 raise web.HTTPBadRequest(text="Telefon raqami noto'g'ri")
             set_setting(db, "operator_phone", "+" + raw if raw else "")
+        if "patir_stock" in d:
+            v = str(d["patir_stock"]).replace(" ", "").strip()
+            if v and (not v.isdigit() or int(v) > 1_000_000):
+                raise web.HTTPBadRequest(text="Patir soni noto'g'ri")
+            set_setting(db, "patir_stock", v)  # bo'sh: hisoblash o'chiriladi
         if "bonus_min" in d or "bonus_items" in d:
             try:
                 mn = int(str(d.get("bonus_min", 0)).replace(" ", "") or 0)
@@ -610,7 +636,8 @@ def make_app(db, bot, password, kb_for):
         web.put("/api/zones/{id}", zone_update),
         web.delete("/api/zones/{id}", zone_delete),
     ])
-    zal.add_routes(app, db, tashkent_now, get_menu, guard, lambda: shop_status(db), lambda: bonus_config(db))
+    zal.add_routes(app, db, tashkent_now, get_menu, guard, lambda: shop_status(db), lambda: bonus_config(db),
+                   (lambda: patir_left(db), lambda d: patir_change(db, d)))
     courier.add_routes(app, db, tashkent_now, change, guard)
     return app
 

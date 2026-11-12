@@ -547,6 +547,20 @@
         background: #c9b8f0;
         color: #3a1c0d;
       }
+      .warnbar {
+        margin: 12px 16px 0;
+        padding: 12px 14px;
+        border-radius: 12px;
+        font-weight: 700;
+        background: #f5b301;
+        color: #2b1a10;
+        border: 2px solid #2b1a10;
+        cursor: pointer;
+      }
+      .warnbar.zero {
+        background: #d92d20;
+        color: #fff;
+      }
       .oi {
         margin: 6px 0 10px;
         padding-left: 18px;
@@ -780,6 +794,7 @@
           <h1 id="ptitle">Statistika</h1>
           <span class="pill" id="shopchip"></span>
         </header>
+        <div id="patirwarn" class="warnbar" hidden></div>
         <main>
           <section id="dash"></section>
           <section id="all" hidden></section>
@@ -1306,6 +1321,17 @@
         b.textContent = S.new;
         const chip = $("#shopchip");
         chip.textContent = SH.status.open ? "🟢 Ochiq" : "🔴 Yopiq";
+        // Patir ombori: 10 ta va undan kam qolsa ogohlantirish, 0 bo'lsa qizil
+        const pv = String(SH.settings.patir_stock ?? "").trim(),
+          pw = $("#patirwarn");
+        if (pv !== "" && +pv <= 10) {
+          pw.hidden = false;
+          pw.classList.toggle("zero", +pv === 0);
+          pw.textContent =
+            +pv === 0
+              ? "🥖 Patir tugadi! Patirga buyurtma olinmayapti. Yangi son kiritish uchun bosing."
+              : `⚠️ Patir kam qoldi: faqat ${pv} ta. Bosib sonni yangilang.`;
+        } else pw.hidden = true;
         const zb = $("#zalb");
         zb.hidden = !S.zal_new;
         zb.textContent = S.zal_new;
@@ -1361,6 +1387,7 @@
         } catch (e) {}
         load();
       }
+      $("#patirwarn").onclick = () => setTab("shop", true);
       $("#nav").onclick = (e) => {
         const b = e.target.closest("button");
         if (b) setTab(b.dataset.t, true);
@@ -2007,6 +2034,10 @@
       <label>Qachongacha (ixtiyoriy, shu vaqtdan keyin jadvalga qaytadi)<br><input type="datetime-local" id="suntil" value="${esc((s.until || "").slice(0, 16).replace(" ", "T"))}"></label>
       <label>Mijozlarga ko'rsatiladigan izoh (yopiq bo'lganda)<br><textarea id="snote" rows="2" maxlength="300" placeholder="Masalan: Bugun dam olish kuni. Ertaga 18:00 dan ishlaymiz.">${esc(s.note)}</textarea></label></div>
     <div class="act" style="margin-top:10px"><button id="saveMode">Saqlash</button></div></div>
+  <div class="card" style="margin-bottom:14px"><h3>🥖 Patir ombori</h3>
+    <p class="muted" style="margin:0 0 8px">Hozir qancha patir borligini yozing. Patirga buyurtma olinganda son o'zi kamayadi, buyurtma bekor qilinsa qaytadi. 10 ta va undan kam qolsa tepada ogohlantirish chiqadi, 0 bo'lsa patirga buyurtma olinmaydi. Bo'sh qoldirsangiz, hisoblash o'chadi (cheklovsiz).</p>
+    <label>Qolgan patir (dona)<br><input type="text" id="pstock" inputmode="numeric" autocomplete="off" value="${esc(s.patir_stock ?? "")}" placeholder="Masalan: 50"></label>
+    <div class="act" style="margin-top:10px"><button id="savePatir">Saqlash</button></div></div>
   <div class="card" style="margin-bottom:14px"><h3>Operator telefon raqami</h3>
     <p class="muted" style="margin:0 0 8px">Buyurtma bekor qilinganda mijozga «Operator bilan bog'laning» xabari bilan shu raqam yuboriladi. Bo'sh qoldirsangiz, raqam yuborilmaydi.</p>
     <input type="tel" id="sphone" inputmode="numeric" autocomplete="off" value="${esc(s.operator_phone ? s.operator_phone.replace(/^\+998/, "+998 ") : "+998 ")}" placeholder="+998 90 123 45 67">
@@ -2044,6 +2075,14 @@
               operator_phone: v ? "+998" + v : "",
             });
             toast(v ? "Operator raqami saqlandi" : "Operator raqami o'chirildi");
+            shopTab();
+            return load();
+          }
+          if (t.id === "savePatir") {
+            SH = await post("/api/shop", "POST", {
+              patir_stock: $("#pstock").value.replace(/\D/g, ""),
+            });
+            toast("Patir soni saqlandi");
             shopTab();
             return load();
           }

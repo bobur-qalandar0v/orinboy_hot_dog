@@ -1302,7 +1302,7 @@ def bread_lines(m, qty, patir):
     return out
 
 
-def add_routes(app, db, now, get_menu, guard, shop_status=None, bonus_config=None):
+def add_routes(app, db, now, get_menu, guard, shop_status=None, bonus_config=None, patir_api=None):
     def rows(sql, args=()):
         cur = db.execute(sql, args)
         cols = [c[0] for c in cur.description]
@@ -1357,6 +1357,19 @@ def add_routes(app, db, now, get_menu, guard, shop_status=None, bonus_config=Non
         if not items:
             return None, err("Buyurtma bo'sh.")
         return items, None
+
+    def patir_check(items):
+        """Patir yetmasa xato javobi (409), aks holda None."""
+        n = sum(i["qty"] for i in items if i.get("patir"))
+        left = patir_api[0]() if (n and patir_api) else None
+        if left is not None and n > left:
+            return err("Patir tugagan." if left == 0 else f"Patir yetarli emas: {left} ta qoldi.", 409)
+        return None
+
+    def patir_take(items):
+        n = sum(i["qty"] for i in items if i.get("patir"))
+        if n and patir_api:
+            patir_api[1](-n)
 
     def add_bonus(d, items, base_total):
         """Bonus tanlangan va summa yetarli bo'lsa, narxi 0 bo'lgan qator qo'shadi. base_total: shu buyurtmagacha bo'lgan summa."""
@@ -1440,7 +1453,8 @@ def add_routes(app, db, now, get_menu, guard, shop_status=None, bonus_config=Non
         st = shop_status() if shop_status else {"open": True, "hours": "", "note": ""}
         shop = {"open": st["open"], "hours": st["hours"], "note": st.get("note", "")}
         bonus = bonus_config() if bonus_config else {"min": 0, "items": []}
-        return web.json_response({"waiter": w, "tables": tables, "takeaways": takeaways, "shop": shop, "bonus": bonus})
+        return web.json_response({"waiter": w, "tables": tables, "takeaways": takeaways, "shop": shop, "bonus": bonus,
+                                  "patir": patir_api[0]() if patir_api else None})
 
     async def w_order(request):
         w = waiter_from(request)
@@ -1467,6 +1481,10 @@ def add_routes(app, db, now, get_menu, guard, shop_status=None, bonus_config=Non
         if guests > free:
             return err(f"Stolda faqat {free} ta bo'sh o'rin bor." if free else
                        "Stol to'liq: yangi mehmon qo'shib bo'lmaydi. Faqat qo'shimcha taom buyurtma qilish mumkin.", 409)
+        bad = patir_check(items)
+        if bad:
+            return bad
+        patir_take(items)
         cur = db.execute(
             "INSERT INTO zal_orders(table_id, zal, number, waiter_id, created, items, total, comment, guests) "
             "VALUES (?,?,?,?,?,?,?,?,?)",
@@ -1493,6 +1511,10 @@ def add_routes(app, db, now, get_menu, guard, shop_status=None, bonus_config=Non
         shift = (now() - timedelta(hours=6)).strftime("%Y-%m-%d") + " 06:00:00"
         number = db.execute("SELECT COUNT(*) FROM zal_orders WHERE kind='takeaway' AND created >= ?",
                             (shift,)).fetchone()[0] + 1
+        bad = patir_check(items)
+        if bad:
+            return bad
+        patir_take(items)
         cur = db.execute(
             "INSERT INTO zal_orders(table_id, zal, number, waiter_id, created, items, total, comment, guests, kind, customer) "
             "VALUES (NULL, 'Saboy', ?, ?, ?, ?, ?, ?, 0, 'takeaway', ?)",
