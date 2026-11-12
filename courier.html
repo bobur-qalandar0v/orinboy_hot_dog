@@ -261,6 +261,22 @@
         white-space: nowrap;
         cursor: pointer;
       }
+      .hh {
+        margin: 16px 2px 8px;
+        font-size: 16px;
+      }
+      .day summary {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        cursor: pointer;
+        font-weight: 700;
+        margin-bottom: 6px;
+      }
+      .kv.sm {
+        font-size: 13px;
+        opacity: 0.85;
+      }
       .kv {
         display: flex;
         justify-content: space-between;
@@ -809,10 +825,63 @@
               ? act.map((o, i) => card(o, i + 1)).join("") ||
                 "<p class=\"empty\">Sizda faol buyurtma yo'q.<br>Buyurtmani «Yangi» bo'limidan oling.</p>"
               : sumCard() +
+                histCard() +
+                (D.mine.length ? '<h3 class="hh">Oxirgi buyurtmalar</h3>' : "") +
                 (D.mine.map((o) => card(o, 0)).join("") ||
                   '<p class="empty">Hali yetkazilgan buyurtma yo\'q.</p>');
       }
       // Yetkazganlarim tepasida: shu dastavchik yetkazgan barcha buyurtmalar bo'yicha hisob (ro'yxat esa oxirgi 20 tasini ko'rsatadi)
+      // Kunlar bo'yicha tarix: har kun ishlagan summa. Hech narsa o'chmaydi, eng yangisi tepada.
+      let HIST = null;
+      const openDays = new Set();
+      function dayLabel(d) {
+        const t = (HIST && HIST.today) || "",
+          prev = t ? new Date(new Date(t + "T00:00:00Z").getTime() - 86400000).toISOString().slice(0, 10) : "";
+        const [y, m, dd] = d.split("-");
+        const base = `${dd}.${m}.${y}`;
+        return d === t ? `Bugun · ${base}` : d === prev ? `Kecha · ${base}` : base;
+      }
+      function histCard() {
+        if (!HIST) return '<p class="empty">Tarix yuklanmoqda…</p>';
+        if (!HIST.days.length) return "";
+        return (
+          '<h3 class="hh">Kunlar bo\'yicha tarix</h3>' +
+          HIST.days
+            .map(
+              (x) =>
+                `<details class="card ord day" data-d="${x.date}"${openDays.has(x.date) ? " open" : ""}><summary><span>${dayLabel(x.date)}</span><b>${fmt(x.total)}</b></summary>` +
+                `<div class="kv"><span>Yetkazgan buyurtmalar</span><b>${x.count} ta</b></div>` +
+                `<div class="kv"><span>Umumiy summa</span><b>${fmt(x.total)}</b></div>` +
+                `<div class="kv"><span>Yetkazib berish haqi</span><b>${fmt(x.fees)}</b></div>` +
+                x.orders
+                  .map(
+                    (o) =>
+                      `<div class="kv sm"><span>#${o.id} · ${esc(o.time)}${o.zone ? " · " + esc(o.zone) : ""}</span><b>${fmt(o.total)}</b></div>`,
+                  )
+                  .join("") +
+                "</details>",
+            )
+            .join("")
+        );
+      }
+      async function loadHist() {
+        try {
+          HIST = await api("/api/c/history");
+        } catch (e) {
+          if (!HIST) HIST = { today: "", days: [] };
+        }
+        if (tab === "done") render();
+      }
+      $("#list").addEventListener(
+        "toggle",
+        (e) => {
+          const d = e.target.dataset && e.target.dataset.d;
+          if (!d) return;
+          if (e.target.open) openDays.add(d);
+          else openDays.delete(d);
+        },
+        true,
+      );
       function sumCard() {
         const s = D.stats || { count: 0, total: 0, fees: 0 };
         return `<div class="card ord"><div class="kv"><span>Yetkazgan buyurtmalar</span><b>${s.count} ta</b></div><div class="kv"><span>Umumiy summa</span><b>${fmt(s.total)}</b></div><div class="kv"><span>Shundan yetkazib berish haqi</span><b>${fmt(s.fees)}</b></div></div>`;
@@ -828,6 +897,7 @@
       $("#tDone").onclick = () => {
         tab = "done";
         render();
+        loadHist();
       };
       $("#tMe").onclick = async () => {
         tab = "me";
