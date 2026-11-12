@@ -29,10 +29,11 @@ def init_courier(db):
         status TEXT DEFAULT 'pending', created TEXT);
     CREATE TABLE IF NOT EXISTS courier_sessions(token TEXT PRIMARY KEY, courier_id INTEGER, created INTEGER);
     """)
-    try:
-        db.execute("ALTER TABLE orders ADD COLUMN courier_id INTEGER")
-    except sqlite3.OperationalError:
-        pass
+    for _sql in ("ALTER TABLE orders ADD COLUMN courier_id INTEGER", "ALTER TABLE orders ADD COLUMN done_at TEXT"):
+        try:
+            db.execute(_sql)
+        except sqlite3.OperationalError:
+            pass
     db.commit()
 
 
@@ -127,6 +128,26 @@ def add_routes(app, db, now, change_status, guard):
             "SELECT COUNT(*), COALESCE(SUM(total), 0), COALESCE(SUM(delivery), 0) FROM orders "
             "WHERE courier_id=? AND status IN ('done','completed')", (cid,)).fetchone()
         return {"count": n, "total": total, "fees": fees}
+
+    async def c_history(request):
+        """Dastavchikning kunlar bo'yicha tarixi: har kun nechta buyurtma, umumiy summa, yetkazish haqi. Hech narsa o'chmaydi."""
+        me = courier_from(request)
+        rs = db.execute(
+            "SELECT o.id, COALESCE(o.done_at, o.created) AS t, COALESCE(o.zone, ''), o.total, COALESCE(o.delivery, 0) "
+            "FROM orders o WHERE o.courier_id=? AND o.status IN ('done','completed') "
+            "ORDER BY COALESCE(o.done_at, o.created) DESC, o.id DESC LIMIT 3000", (me["id"],)).fetchall()
+        days, idx = [], {}
+        for oid, t, zone, total, fee in rs:
+            d = str(t)[:10]
+            if d not in idx:
+                idx[d] = {"date": d, "count": 0, "total": 0, "fees": 0, "orders": []}
+                days.append(idx[d])
+            x = idx[d]
+            x["count"] += 1
+            x["total"] += total or 0
+            x["fees"] += fee or 0
+            x["orders"].append({"id": oid, "time": str(t)[11:16], "zone": zone, "total": total or 0, "fee": fee or 0})
+        return web.json_response({"today": now().strftime("%Y-%m-%d"), "days": days})
 
     async def c_orders(request):
         me = courier_from(request)
@@ -246,6 +267,7 @@ def add_routes(app, db, now, change_status, guard):
         web.post("/api/c/register", register),
         web.post("/api/c/login", login),
         web.get("/api/c/orders", c_orders),
+        web.get("/api/c/history", c_history),
         web.post("/api/c/orders/{id}/status", c_status),
         web.get("/api/c/me", c_me),
         web.post("/api/c/me", c_me_update),

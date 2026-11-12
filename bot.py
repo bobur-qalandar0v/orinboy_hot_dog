@@ -485,7 +485,7 @@ db.execute("CREATE TABLE IF NOT EXISTS orders(id INTEGER PRIMARY KEY AUTOINCREME
            "items TEXT, total INTEGER, pay TEXT, address TEXT, comment TEXT, status TEXT DEFAULT 'new')")
 for _sql in ("ALTER TABLE orders ADD COLUMN rating INTEGER", "ALTER TABLE orders ADD COLUMN zone TEXT",
              "ALTER TABLE orders ADD COLUMN zone_id TEXT", "ALTER TABLE orders ADD COLUMN delivery INTEGER DEFAULT 0", "ALTER TABLE orders ADD COLUMN ahead INTEGER",
-             "ALTER TABLE orders ADD COLUMN printed INTEGER DEFAULT 0",
+             "ALTER TABLE orders ADD COLUMN printed INTEGER DEFAULT 0", "ALTER TABLE orders ADD COLUMN done_at TEXT",
              "ALTER TABLE users ADD COLUMN zone TEXT", "ALTER TABLE users ADD COLUMN registered TEXT"):
     try:
         db.execute(_sql)

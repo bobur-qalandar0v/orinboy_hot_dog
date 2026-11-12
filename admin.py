@@ -396,6 +396,9 @@ def make_app(db, bot, password, kb_for):
             raise ValueError("Bu holatga o'tib bo'lmaydi")
         uid = row[0]
         db.execute("UPDATE orders SET status=? WHERE id=?", (status, oid))
+        if status in ("done", "completed"):  # yetkazilgan vaqt: dastavchik kunlik tarixi uchun
+            db.execute("UPDATE orders SET done_at=? WHERE id=? AND done_at IS NULL",
+                       (tashkent_now().strftime("%Y-%m-%d %H:%M:%S"), oid))
         if status == "cancelled":  # bekor qilingan buyurtmadagi patir omborga qaytadi
             patir_change(db, patir_count(json.loads(row[2] or "[]")))
         if status in ("done", "completed", "cancelled"):
