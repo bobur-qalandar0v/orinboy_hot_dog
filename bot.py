@@ -729,6 +729,20 @@ async def on_order(message: Message):
     items_json = json.dumps(items, ensure_ascii=False)
     edit_id = int(order.get("edit") or 0)
 
+    # Patir ombori: admin son kiritgan bo'lsa, yetmasa buyurtma qabul qilinmaydi
+    need = admin.patir_count(items)
+    if need and edit_id:
+        old = db.execute("SELECT items FROM orders WHERE id=? AND uid=?", (edit_id, uid)).fetchone()
+        need_new = need - (admin.patir_count(json.loads(old[0])) if old else 0)
+    else:
+        need_new = need
+    left = admin.patir_left(db)
+    if left is not None and need_new > left:
+        await message.answer("Kechirasiz, patir tugagan. Iltimos, oddiy bulochkada tanlang." if left == 0
+                             else f"Kechirasiz, patir yetarli emas: {left} ta qoldi. Menyuni qayta ochib, kamroq tanlang.",
+                             reply_markup=kb_for(uid))
+        return
+
     if edit_id:
         row = db.execute("SELECT status FROM orders WHERE id=? AND uid=?", (edit_id, uid)).fetchone()
         if not row or row[0] != "new":
@@ -737,6 +751,7 @@ async def on_order(message: Message):
             return
         db.execute("UPDATE orders SET items=?, total=?, pay=?, address=?, comment=?, zone=?, zone_id=?, delivery=? WHERE id=?",
                    (items_json, total, pay, address, comment, zone["name"], zone["id"], delivery, edit_id))
+        admin.patir_change(db, -need_new)
         oid, title = edit_id, "✏️ Buyurtma o'zgartirildi"
     else:
         cur = db.execute(
@@ -744,6 +759,7 @@ async def on_order(message: Message):
             "VALUES (?,?,?,?,?,?,?,?,?,?)",
             (uid, admin.tashkent_now().strftime("%Y-%m-%d %H:%M:%S"), items_json, total, pay, address, comment,
              zone["name"], zone["id"], delivery))
+        admin.patir_change(db, -need)
         oid, title = cur.lastrowid, "🆕 Yangi buyurtma"
     if by_card:
         db.execute("INSERT OR REPLACE INTO pending VALUES (?,?)", (uid, total))
@@ -822,6 +838,9 @@ async def do_cancel(cb: CallbackQuery):
         await cb.answer()
         return
     db.execute("UPDATE orders SET status='cancelled' WHERE id=?", (oid,))
+    old = db.execute("SELECT items FROM orders WHERE id=?", (oid,)).fetchone()
+    if old:
+        admin.patir_change(db, admin.patir_count(json.loads(old[0] or "[]")))  # patir omborga qaytadi
     db.execute("DELETE FROM pending WHERE uid=?", (uid,))
     db.commit()
     await cb.message.edit_text(f"Buyurtma #{oid} bekor qilindi.")

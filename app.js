@@ -83,6 +83,12 @@ const ts = { v: 0 };
 // Patir: har bir taomdan nechtasi bulochkada emas, patirga pishsin (ichimliklarga tegishli emas)
 const patir = {};
 const hasBread = m => !/ichimlik/i.test(m.cat || "");
+const pLeft = () => (SHOP.patir == null ? Infinity : SHOP.patir);      // admin kiritgan qolgan patir soni
+const pTotal = () => Object.keys(patir).reduce((a, id) => a + pq(id), 0);
+function pTrim() {                                                    // ombor kamayib qolsa, ortiqchasi olib tashlanadi
+    let over = pTotal() - pLeft();
+    for (const id of Object.keys(patir)) { if (over <= 0) break; const d = Math.min(over, pq(id)); patir[id] = pq(id) - d; over -= d; if (!patir[id]) delete patir[id]; }
+}
 const pq = id => Math.max(0, Math.min(patir[id] || 0, cart[id] || 0));
 let bonusSel = "";
 function renderBonus() {
@@ -96,15 +102,16 @@ function renderBonus() {
 $("bonusbox").onclick = e => { const b = e.target.closest(".bopt"); if (!b) return; bonusSel = bonusSel === b.dataset.b ? "" : b.dataset.b; renderBonus(); };
 $("summary").addEventListener("click", e => {
     const b = e.target.closest("[data-pm]"); if (!b) return;
-    const id = b.dataset.pm; patir[id] = Math.max(0, Math.min(cart[id] || 0, pq(id) + Number(b.dataset.d)));
+    const id = b.dataset.pm; if (Number(b.dataset.d) > 0 && pTotal() >= pLeft()) return; patir[id] = Math.max(0, Math.min(cart[id] || 0, pq(id) + Number(b.dataset.d)));
     if (!patir[id]) delete patir[id];
     renderSummary();
 });
 function renderSummary() {
+    pTrim();
     renderBonus();
     const z = ZONES.find(x => x.id === zone), fee = z ? z.fee : 0, t = total() + fee;
     $("summary").innerHTML = MENU.filter(m => cart[m.id]).map(m => `<div class="row"><span>${m.name}${m.desc && /Standart|Katta/.test(m.desc) ? " (" + m.desc.toLowerCase() + ")" : ""} × ${cart[m.id]}</span><b>${fmt(m.price * cart[m.id])}</b></div>`
-        + (hasBread(m) ? `<div class="row patir"><span>🥖 Patirga <small>(qolgani oddiy bulochkada)</small></span><span class="pst"><button type="button" data-pm="${m.id}" data-d="-1" aria-label="Patirni kamaytirish">−</button><b>${pq(m.id)}</b><button type="button" data-pm="${m.id}" data-d="1" aria-label="Patirni ko'paytirish">+</button></span></div>` : "")).join("")
+        + (hasBread(m) && pLeft() === 0 ? `<div class="row patir"><span>🥖 Patir hozircha tugagan</span></div>` : hasBread(m) ? `<div class="row patir"><span>🥖 Patirga <small>(qolgani oddiy bulochkada)</small></span><span class="pst"><button type="button" data-pm="${m.id}" data-d="-1" aria-label="Patirni kamaytirish">−</button><b>${pq(m.id)}</b><button type="button" data-pm="${m.id}" data-d="1" aria-label="Patirni ko'paytirish"${pTotal() >= pLeft() ? " disabled" : ""}>+</button></span></div>` : "")).join("")
         + (z ? `<div class="row"><span>${z.pickup ? "Olib ketish" : "Yetkazib berish"}</span><b>${z.pickup ? "bepul" : fmt(fee)}</b></div>` : "")
         + `<div class="row" style="font-size:20px"><b>Jami</b><b>${fmt(t)}</b></div>`;
     $("topl").textContent = z ? "Umumiy summa" : "Umumiy summa (yetkazishsiz)";

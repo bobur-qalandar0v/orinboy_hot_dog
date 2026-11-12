@@ -1126,6 +1126,7 @@
           TAKE = d.takeaways || [];
           SHOP = d.shop || { open: true, hours: "", note: "" };
           BONUS = d.bonus || { min: 0, items: [] };
+          PATIRLEFT = d.patir == null ? null : d.patir;
           $("#wname").textContent = "👋 " + d.waiter.name;
           renderTables();
           renderSaboy();
@@ -1418,17 +1419,26 @@
 
       // ---------- yuborish ----------
       // Patir: har bir taomdan nechtasi patirga pishsin (ichimliklarga tegishli emas)
-      let patirW = {};
+      let patirW = {},
+        PATIRLEFT = null; // qolgan patir (null: cheklanmagan)
+      const pLeftW = () => (PATIRLEFT == null ? Infinity : PATIRLEFT);
+      const pTotalW = () => Object.keys(patirW).reduce((a, id) => a + pqW(id), 0);
       const hasBread = (m) => !/ichimlik/i.test(m.cat || "");
       const pqW = (id) => Math.max(0, Math.min(patirW[id] || 0, cart[id] || 0));
       function renderDcl() {
+        for (const id of Object.keys(patirW)) {
+          const over = pTotalW() - pLeftW();
+          if (over > 0) patirW[id] = Math.max(0, pqW(id) - over);
+        }
         $("#dcl").innerHTML =
           MENU.filter((m) => cart[m.id])
             .map(
               (m) =>
                 `<div class="row2"><span>${esc(m.name)} × ${cart[m.id]}</span><b>${fmt(m.price * cart[m.id])}</b></div>` +
-                (hasBread(m)
-                  ? `<div class="row2 pat"><span>🥖 Patirga <small>(qolgani bulochkada)</small></span><span class="pst"><button type="button" data-wp="${m.id}" data-d="-1">−</button><b>${pqW(m.id)}</b><button type="button" data-wp="${m.id}" data-d="1">+</button></span></div>`
+                (hasBread(m) && pLeftW() === 0
+                  ? `<div class="row2 pat"><span>🥖 Patir hozircha tugagan</span></div>`
+                  : hasBread(m)
+                  ? `<div class="row2 pat"><span>🥖 Patirga <small>(qolgani bulochkada)</small></span><span class="pst"><button type="button" data-wp="${m.id}" data-d="-1">−</button><b>${pqW(m.id)}</b><button type="button" data-wp="${m.id}" data-d="1"${pTotalW() >= pLeftW() ? " disabled" : ""}>+</button></span></div>`
                   : ""),
             )
             .join("") +
@@ -1438,6 +1448,7 @@
         const b = e.target.closest("[data-wp]");
         if (!b) return;
         const id = b.dataset.wp;
+        if (Number(b.dataset.d) > 0 && pTotalW() >= pLeftW()) return;
         patirW[id] = Math.max(0, Math.min(cart[id] || 0, pqW(id) + Number(b.dataset.d)));
         renderDcl();
       };
