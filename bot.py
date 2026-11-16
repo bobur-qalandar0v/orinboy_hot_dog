@@ -582,7 +582,7 @@ async def start(message: Message, state: FSMContext):
     user = get_user(message.from_user.id)
     if user:
         st = admin.shop_status(db)
-        extra = "" if st["open"] else "\n\n" + admin.closed_message(st)
+        extra = "" if st["bot_open"] else "\n\n" + admin.closed_message(st)
         await message.answer(f"Salom, {user['name']}! Buyurtma berish uchun tugmani bosing.{extra}",
                              reply_markup=kb_for(message.from_user.id))
     else:
@@ -610,7 +610,7 @@ async def order_menu(message: Message):
         await message.answer("Avval /start bosib, ro'yxatdan o'ting.")
         return
     st = admin.shop_status(db)
-    extra = "" if st["open"] else "\n\n" + admin.closed_message(st)
+    extra = "" if st["bot_open"] else "\n\n" + admin.closed_message(st)
     await message.answer(f"Buyurtma berish uchun pastdagi tugmani bosing 👇{extra}", reply_markup=kb_for(uid))
 
 
@@ -618,8 +618,10 @@ async def order_menu(message: Message):
 async def contact(message: Message):
     """Hozir ochiqmi, ish vaqti va operator telefoni."""
     st = admin.shop_status(db)
-    text = ("🟢 Hozir ochiq" if st["open"] else "🔴 Hozir yopiq") + f"\n⏰ Ish vaqti: {st['hours']} (Toshkent vaqti)"
-    if not st["open"] and st.get("note"):
+    text = ("🟢 Hozir ochiq" if st["bot_open"] else "⏸ Buyurtma vaqtincha to'xtatilgan" if st["paused"] else "🔴 Hozir yopiq") + f"\n⏰ Ish vaqti: {st['hours']} (Toshkent vaqti)"
+    if st["paused"] and st.get("bot_note"):
+        text += f"\n{st['bot_note']}"
+    elif not st["open"] and st.get("note"):
         text += f"\n{st['note']}"
     await message.answer(text + (admin.operator_line(db) or "\n📞 Operator raqami hali kiritilmagan."))
 
@@ -681,7 +683,7 @@ async def on_order(message: Message):
         await message.answer("Avval /start orqali ro'yxatdan o'ting.")
         return
     st = admin.shop_status(db)
-    if not st["open"]:
+    if not st["bot_open"]:
         await message.answer(admin.closed_message(st), reply_markup=kb_for(uid))
         return
     order = json.loads(message.web_app_data.data)
