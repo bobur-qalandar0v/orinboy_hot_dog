@@ -32,6 +32,10 @@ STATUS_MSG = {
     "cancelled": "❌ buyurtmangiz bekor qilindi. Savollar bo'lsa, operator bilan bog'laning.",
     "completed": "🎉 buyurtmangiz yakunlandi. Rahmat!",
 }
+# Buyurtma olib ketishga mo'ljallanganmi (hudud «olib ketish» yoki manzil «Olib ketadi…»)
+PICKUP_SQL = "(COALESCE((SELECT pickup FROM zones WHERE id = o.zone_id), 0) = 1 OR COALESCE(o.address, '') LIKE 'Olib ketadi%')"
+# Olib ketadigan (pickup) buyurtmada «tayyorlanmoqda» va «yo'lda» bosqichlari yo'q: yangi → tayyor (olib ketsin) → yakunlandi
+STATUS_MSG_PICKUP = {"done": "✅ buyurtmangiz tayyor! Olib ketishingiz mumkin. Yoqimli ishtaha! 🌭"}
 # Holatlar faqat oldinga yuradi; orqaga qaytib bo'lmaydi.
 FLOW = {
     "new": ["cooking", "cancelled"],
@@ -372,7 +376,7 @@ def make_app(db, bot, password, kb_for):
     async def orders(request):
         data = rows(
             "SELECT o.id, o.created, o.items, o.total, o.pay, o.address, o.comment, o.status, o.rating, o.zone, o.delivery, "
-            "COALESCE(o.printed, 0) AS printed, u.name, u.phone, c.name AS courier, c.phone AS courier_phone, "
+            "COALESCE(o.printed, 0) AS printed, " + PICKUP_SQL + " AS pickup, u.name, u.phone, c.name AS courier, c.phone AS courier_phone, "
             "TRIM(COALESCE(c.car_model,'') || ' ' || COALESCE(c.car_number,'')) AS car "
             "FROM orders o LEFT JOIN users u ON u.id = o.uid LEFT JOIN couriers c ON c.id = o.courier_id "
             "ORDER BY o.id DESC LIMIT 200")
@@ -392,7 +396,12 @@ def make_app(db, bot, password, kb_for):
         row = db.execute("SELECT uid, status, items FROM orders WHERE id=?", (oid,)).fetchone()
         if not row:
             raise ValueError("Buyurtma topilmadi")
-        if status not in FLOW.get(row[1], []):
+        pickup = bool(db.execute(
+            "SELECT " + PICKUP_SQL + " FROM orders o WHERE o.id=?", (oid,)).fetchone()[0])
+        allowed = FLOW.get(row[1], [])
+        if pickup and row[1] in ("new", "cooking"):
+            allowed = ["done", "cancelled"]
+        if status not in allowed:
             raise ValueError("Bu holatga o'tib bo'lmaydi")
         uid = row[0]
         db.execute("UPDATE orders SET status=? WHERE id=?", (status, oid))
@@ -412,12 +421,14 @@ def make_app(db, bot, password, kb_for):
                 extra = f"\nDastavchik: {c[0]}, {c[1]}\nMashina: {c[2]} {c[3]}"
         notified = False
         try:
-            await bot.send_message(uid, f"Buyurtma #{oid}: {STATUS_MSG[status]}{extra}", reply_markup=kb_for(uid))
+            msg = STATUS_MSG_PICKUP.get(status) if pickup else None
+            await bot.send_message(uid, f"Buyurtma #{oid}: {msg or STATUS_MSG[status]}{extra}", reply_markup=kb_for(uid))
             notified = True
             if status == "done":
                 kb = InlineKeyboardMarkup(inline_keyboard=[[
                     InlineKeyboardButton(text="✅ Qabul qildim", callback_data=f"recv:{oid}")]])
-                await bot.send_message(uid, "Buyurtmani qabul qilgach, quyidagi tugmani bosing:", reply_markup=kb)
+                await bot.send_message(uid, "Buyurtmani olgach, quyidagi tugmani bosing:" if pickup
+                                       else "Buyurtmani qabul qilgach, quyidagi tugmani bosing:", reply_markup=kb)
             elif status == "completed":
                 await bot.send_message(uid, "Xizmatimizni baholang, fikringiz biz uchun muhim:",
                                        reply_markup=rating_kb(oid))

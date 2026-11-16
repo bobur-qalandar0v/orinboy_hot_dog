@@ -1027,6 +1027,19 @@
         completed: [],
         cancelled: [],
       };
+      // Olib ketadigan buyurtmada «Tayyorlanmoqda» va «Yo'lda» yo'q: faqat «Tayyor (olib ketsin)» va «Bekor qilish»
+      const nextOf = (o) =>
+        o.pickup && (o.status === "new" || o.status === "cooking")
+          ? ["done", "cancelled"]
+          : NEXT[o.status] || [];
+      const btnLabel = (o, s) =>
+        s === "completed"
+          ? o.pickup
+            ? "Olib ketildi"
+            : "Yakunlash"
+          : s === "done" && o.pickup
+            ? "✅ Tayyor (olib ketsin)"
+            : ST[s];
       const post = (u, method, body) =>
         api(u, {
           method,
@@ -1282,9 +1295,9 @@
             (
               o,
             ) => `<div class="card order"><div class="oh"><b>#${o.id}</b><span class="tag s-${o.status}">${ST[o.status]}</span><span class="tag">${o.pay === "card" ? "💳 Karta" : "💵 Naqd"}</span><span class="tag ${o.printed ? "" : "s-cooking"}">${o.printed ? "🖨 Chiqarilgan" : "Chek chiqarilmagan"}</span>${o.rating ? `<span class="tag">⭐ ${o.rating}</span>` : ""}<span class="muted">${ago(o.created)}</span><b style="margin-left:auto">${fmt(o.total)}</b></div>
-   <div><b>${esc(o.name || "Noma'lum")}</b> · ${esc(o.phone || "")}${o.address && o.address !== o.zone ? `<br><span class="muted">📍 ${esc(o.address)}</span>` : ""}${o.zone ? `<br><span class="muted">🛵 ${esc(o.zone)}${o.delivery ? " · " + fmt(o.delivery) : ""}</span>` : ""}${o.courier ? `<br><span class="muted">🚗 Dastavchik: <b>${esc(o.courier)}</b> · ${esc(o.courier_phone)} · ${esc(o.car)}</span>` : ""}${o.comment ? `<br><span class="muted">💬 ${esc(o.comment)}</span>` : ""}</div>
+   <div><b>${esc(o.name || "Noma'lum")}</b> · ${esc(o.phone || "")}${o.address && o.address !== o.zone ? `<br><span class="muted">📍 ${esc(o.address)}</span>` : ""}${o.zone ? `<br><span class="muted">${o.pickup ? "🏃" : "🛵"} ${esc(o.zone)}${o.delivery ? " · " + fmt(o.delivery) : ""}</span>` : ""}${o.courier ? `<br><span class="muted">🚗 Dastavchik: <b>${esc(o.courier)}</b> · ${esc(o.courier_phone)} · ${esc(o.car)}</span>` : ""}${o.comment ? `<br><span class="muted">💬 ${esc(o.comment)}</span>` : ""}</div>
    <ul class="oi">${o.items.map((i) => `<li>${esc(i.name)} × ${i.qty} <span class="muted">— ${fmt(i.price * i.qty)}</span></li>`).join("")}</ul>
-   <div class="act"><button data-oprint="${o.id}">🖨 Chek</button>${(NEXT[o.status] || []).map((s) => `<button data-id="${o.id}" data-s="${s}">${s === "completed" ? "Yakunlash" : ST[s]}</button>`).join("") || '<span class="muted">Yakunlangan</span>'}</div></div>`,
+   <div class="act"><button data-oprint="${o.id}">🖨 Chek</button>${nextOf(o).map((s) => `<button data-id="${o.id}" data-s="${s}">${btnLabel(o, s)}</button>`).join("") || '<span class="muted">Yakunlangan</span>'}</div></div>`,
           ).join("") || '<p class="muted">Buyurtma yo\'q.</p>');
       }
 
