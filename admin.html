@@ -1333,7 +1333,7 @@
         b.hidden = !S.new;
         b.textContent = S.new;
         const chip = $("#shopchip");
-        chip.textContent = SH.status.open ? "🟢 Ochiq" : "🔴 Yopiq";
+        chip.textContent = SH.status.paused ? "⏸ Bot to'xtatilgan" : SH.status.open ? "🟢 Ochiq" : "🔴 Yopiq";
         // Patir ombori: 10 ta va undan kam qolsa ogohlantirish, 0 bo'lsa qizil
         const pv = String(SH.settings.patir_stock ?? "").trim(),
           pw = $("#patirwarn");
@@ -1747,9 +1747,10 @@
           .join("");
         // Chek turi: zal (stol), saboy yoki botdan kelgan yetkazish buyurtmasi
         const dl = o.kind === "delivery",
-          tk = o.kind === "takeaway";
+          tk = o.kind === "takeaway",
+          pk = dl && (o.pickup || /^Olib ketadi/.test(o.address || "")); // olib ketadi: yetkazish yo'q
         const head = dl
-          ? "YETKAZISH #" + o.id
+          ? (pk ? "OLIB KETISH #" : "YETKAZISH #") + o.id
           : tk
             ? "SABOY №" + o.number
             : esc(o.zal) + " · STOL " + o.number;
@@ -1758,7 +1759,7 @@
           : tk && o.customer
             ? `<div class="c">Mijoz: ${esc(o.customer)}</div>`
             : "";
-        const fees = dl
+        const fees = dl && !pk
           ? `<table><tr><td>Mahsulotlar</td><td class="r">${money(o.total - (o.delivery || 0))}</td></tr><tr><td>Yetkazish</td><td class="r">${money(o.delivery || 0)}</td></tr></table>`
           : "";
         const foot = dl
@@ -2047,6 +2048,10 @@
       <label>Qachongacha (ixtiyoriy, shu vaqtdan keyin jadvalga qaytadi)<br><input type="datetime-local" id="suntil" value="${esc((s.until || "").slice(0, 16).replace(" ", "T"))}"></label>
       <label>Mijozlarga ko'rsatiladigan izoh (yopiq bo'lganda)<br><textarea id="snote" rows="2" maxlength="300" placeholder="Masalan: Bugun dam olish kuni. Ertaga 18:00 dan ishlaymiz.">${esc(s.note)}</textarea></label></div>
     <div class="act" style="margin-top:10px"><button id="saveMode">Saqlash</button></div></div>
+  <div class="card" style="margin-bottom:14px"><h3>⏸ Botdan buyurtmani to'xtatish</h3>
+    <p class="muted" style="margin:0 0 8px">Ish vaqtini o'zgartirmasdan, botdan (yetkazish va olib ketish) buyurtma qabul qilishni vaqtincha to'xtatadi. Zal va saboy buyurtmalari ishlayveradi. Hozir: <b>${s.bot_paused === "1" ? "⏸ TO'XTATILGAN" : "🟢 qabul qilinyapti"}</b></p>
+    <label>Mijozga ko'rsatiladigan izoh (ixtiyoriy)<br><input type="text" id="pnote" maxlength="300" value="${esc(s.bot_note || "")}" placeholder="Masalan: Buyurtma ko'pligi sababli 30 daqiqaga to'xtatildi"></label>
+    <div class="act" style="margin-top:10px"><button id="pauseBot" data-v="${s.bot_paused === "1" ? "0" : "1"}">${s.bot_paused === "1" ? "▶️ Qayta yoqish" : "⏸ To'xtatish"}</button></div></div>
   <div class="card" style="margin-bottom:14px"><h3>🥖 Patir ombori</h3>
     <p class="muted" style="margin:0 0 8px">Hozir qancha patir borligini yozing. Patirga buyurtma olinganda son o'zi kamayadi, buyurtma bekor qilinsa qaytadi. 10 ta va undan kam qolsa tepada ogohlantirish chiqadi, 0 bo'lsa patirga buyurtma olinmaydi. Bo'sh qoldirsangiz, hisoblash o'chadi (cheklovsiz).</p>
     <label>Qolgan patir (dona)<br><input type="text" id="pstock" inputmode="numeric" autocomplete="off" value="${esc(s.patir_stock ?? "")}" placeholder="Masalan: 50"></label>
@@ -2088,6 +2093,15 @@
               operator_phone: v ? "+998" + v : "",
             });
             toast(v ? "Operator raqami saqlandi" : "Operator raqami o'chirildi");
+            shopTab();
+            return load();
+          }
+          if (t.id === "pauseBot") {
+            SH = await post("/api/shop", "POST", {
+              bot_paused: t.dataset.v,
+              bot_note: t.dataset.v === "1" ? $("#pnote").value : "",
+            });
+            toast(t.dataset.v === "1" ? "Botdan buyurtma to'xtatildi" : "Botdan buyurtma qayta yoqildi");
             shopTab();
             return load();
           }

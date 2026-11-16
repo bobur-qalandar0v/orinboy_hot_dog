@@ -89,7 +89,8 @@ def tashkent_now():
 
 
 DEFAULT_SHOP = {"open_time": "18:00", "close_time": "02:00", "mode": "auto", "until": "", "note": "",
-                "operator_phone": "", "bonus_min": "0", "bonus_items": "", "patir_stock": ""}
+                "operator_phone": "", "bonus_min": "0", "bonus_items": "", "patir_stock": "",
+                "bot_paused": "0", "bot_note": ""}
 
 
 def get_setting(db, key):
@@ -161,7 +162,10 @@ def shop_status(db):
     hhmm, o, c = now.strftime("%H:%M"), s["open_time"], s["close_time"]
     in_hours = True if o == c else (o <= hhmm < c if o < c else (hhmm >= o or hhmm < c))
     is_open = True if mode == "open" else False if mode == "closed" else in_hours
-    return {"open": is_open, "mode": mode, "in_hours": in_hours, "open_time": o, "close_time": c,
+    paused = s["bot_paused"] == "1"
+    # open: zal/ofitsant uchun (ish vaqti); bot_open: botdan buyurtma qabul qilinadimi (to'xtatish tugmasi faqat botga ta'sir qiladi)
+    return {"open": is_open, "bot_open": is_open and not paused, "paused": paused, "bot_note": s["bot_note"],
+            "mode": mode, "in_hours": in_hours, "open_time": o, "close_time": c,
             "hours": f"{o}–{c}", "until": s["until"], "note": s["note"] if mode != "auto" else ""}
 
 
@@ -175,6 +179,9 @@ def operator_line(db):
 
 
 def closed_message(st):
+    if st.get("paused"):
+        msg = "⏸ Hozir botdan buyurtma qabul qilinmayapti. Birozdan keyin qayta urinib ko'ring."
+        return msg + (f"\n{st['bot_note']}" if st.get("bot_note") else "")
     msg = f"⏰ Hozir buyurtma qabul qilinmaydi.\nIsh vaqti: {st['hours']}."
     if st.get("note"):
         msg += f"\n{st['note']}"
@@ -553,9 +560,9 @@ def make_app(db, bot, password, kb_for):
 
     async def status_public(request):
         st = shop_status(db)
-        return web.json_response({"open": st["open"], "hours": st["hours"], "note": st["note"],
+        return web.json_response({"open": st["bot_open"], "hours": st["hours"], "note": st["note"],
                                   "bonus": bonus_config(db), "patir": patir_left(db),
-                                  "message": "" if st["open"] else closed_message(st)},
+                                  "message": "" if st["bot_open"] else closed_message(st)},
                                  headers={"Access-Control-Allow-Origin": "*", "Cache-Control": "no-store"})
 
     async def shop_get(request):
@@ -571,6 +578,9 @@ def make_app(db, bot, password, kb_for):
             if raw and not (len(raw) == 12 and raw.startswith("998")):
                 raise web.HTTPBadRequest(text="Telefon raqami noto'g'ri")
             set_setting(db, "operator_phone", "+" + raw if raw else "")
+        if "bot_paused" in d:
+            set_setting(db, "bot_paused", "1" if str(d["bot_paused"]) in ("1", "true", "True") else "0")
+            set_setting(db, "bot_note", re.sub(r"\s+", " ", str(d.get("bot_note", ""))).strip()[:300])
         if "patir_stock" in d:
             v = str(d["patir_stock"]).replace(" ", "").strip()
             if v and (not v.isdigit() or int(v) > 1_000_000):
