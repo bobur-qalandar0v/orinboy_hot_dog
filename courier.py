@@ -124,29 +124,42 @@ def add_routes(app, db, now, change_status, guard):
 
     def c_stats(cid):
         """Dastavchik yetkazgan (done/completed) barcha buyurtmalar: soni, umumiy summa, shundan yetkazish haqi."""
-        n, total, fees = db.execute(
-            "SELECT COUNT(*), COALESCE(SUM(total), 0), COALESCE(SUM(delivery), 0) FROM orders "
-            "WHERE courier_id=? AND status IN ('done','completed')", (cid,)).fetchone()
-        return {"count": n, "total": total, "fees": fees}
+        out = {"count": 0, "total": 0, "fees": 0,
+               "cash": {"count": 0, "total": 0, "fees": 0}, "card": {"count": 0, "total": 0, "fees": 0}}
+        # To'lov turi bo'yicha: naqd (mijozdan dastavchik oladi) va Click/karta (pul restoranga tushgan, yetkazish haqi keyin hisob-kitob qilinadi)
+        for pay, n, total, fees in db.execute(
+                "SELECT CASE WHEN pay='card' THEN 'card' ELSE 'cash' END, COUNT(*), COALESCE(SUM(total), 0), "
+                "COALESCE(SUM(delivery), 0) FROM orders WHERE courier_id=? AND status IN ('done','completed') GROUP BY 1",
+                (cid,)).fetchall():
+            out[pay] = {"count": n, "total": total, "fees": fees}
+            out["count"] += n
+            out["total"] += total
+            out["fees"] += fees
+        return out
 
     async def c_history(request):
         """Dastavchikning kunlar bo'yicha tarixi: har kun nechta buyurtma, umumiy summa, yetkazish haqi. Hech narsa o'chmaydi."""
         me = courier_from(request)
         rs = db.execute(
-            "SELECT o.id, COALESCE(o.done_at, o.created) AS t, COALESCE(o.zone, ''), o.total, COALESCE(o.delivery, 0) "
+            "SELECT o.id, COALESCE(o.done_at, o.created) AS t, COALESCE(o.zone, ''), o.total, COALESCE(o.delivery, 0), "
+            "CASE WHEN o.pay='card' THEN 'card' ELSE 'cash' END "
             "FROM orders o WHERE o.courier_id=? AND o.status IN ('done','completed') "
             "ORDER BY COALESCE(o.done_at, o.created) DESC, o.id DESC LIMIT 3000", (me["id"],)).fetchall()
         days, idx = [], {}
-        for oid, t, zone, total, fee in rs:
+        for oid, t, zone, total, fee, pay in rs:
             d = str(t)[:10]
             if d not in idx:
-                idx[d] = {"date": d, "count": 0, "total": 0, "fees": 0, "orders": []}
+                idx[d] = {"date": d, "count": 0, "total": 0, "fees": 0, "orders": [],
+                          "cash": {"count": 0, "total": 0, "fees": 0}, "card": {"count": 0, "total": 0, "fees": 0}}
                 days.append(idx[d])
             x = idx[d]
             x["count"] += 1
             x["total"] += total or 0
             x["fees"] += fee or 0
-            x["orders"].append({"id": oid, "time": str(t)[11:16], "zone": zone, "total": total or 0, "fee": fee or 0})
+            x[pay]["count"] += 1
+            x[pay]["total"] += total or 0
+            x[pay]["fees"] += fee or 0
+            x["orders"].append({"id": oid, "time": str(t)[11:16], "zone": zone, "total": total or 0, "fee": fee or 0, "pay": pay})
         return web.json_response({"today": now().strftime("%Y-%m-%d"), "days": days})
 
     async def c_orders(request):
@@ -224,7 +237,11 @@ def add_routes(app, db, now, change_status, guard):
             "SELECT c.id, c.name, c.phone, c.login, c.pw_plain AS password, c.car_number, c.car_model, c.status, "
             "c.created, (SELECT COUNT(*) FROM orders o WHERE o.courier_id = c.id AND o.status IN ('done','completed')) "
             "AS delivered, (SELECT COALESCE(SUM(o.total), 0) FROM orders o WHERE o.courier_id = c.id "
-            "AND o.status IN ('done','completed')) AS earned FROM couriers c ORDER BY c.id DESC"))
+            "AND o.status IN ('done','completed')) AS earned, "
+            "(SELECT COALESCE(SUM(o.delivery), 0) FROM orders o WHERE o.courier_id = c.id AND o.pay = 'card' "
+            "AND o.status IN ('done','completed')) AS card_fees, "
+            "(SELECT COALESCE(SUM(o.total), 0) FROM orders o WHERE o.courier_id = c.id AND COALESCE(o.pay, '') != 'card' "
+            "AND o.status IN ('done','completed')) AS cash_total FROM couriers c ORDER BY c.id DESC"))
 
     async def a_status(request):
         guard(request)

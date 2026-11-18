@@ -273,6 +273,11 @@
         font-weight: 700;
         margin-bottom: 6px;
       }
+      .paysub {
+        margin: 8px 0;
+        padding: 8px 0;
+        border-top: 1px dashed currentColor;
+      }
       .kv.sm {
         font-size: 13px;
         opacity: 0.85;
@@ -853,10 +858,11 @@
                 `<div class="kv"><span>Yetkazgan buyurtmalar</span><b>${x.count} ta</b></div>` +
                 `<div class="kv"><span>Umumiy summa</span><b>${fmt(x.total)}</b></div>` +
                 `<div class="kv"><span>Yetkazib berish haqi</span><b>${fmt(x.fees)}</b></div>` +
+                payBlocks(x, "paysub") +
                 x.orders
                   .map(
                     (o) =>
-                      `<div class="kv sm"><span>#${o.id} · ${esc(o.time)}${o.zone ? " · " + esc(o.zone) : ""}</span><b>${fmt(o.total)}</b></div>`,
+                      `<div class="kv sm"><span>#${o.id} · ${esc(o.time)}${o.zone ? " · " + esc(o.zone) : ""} · ${o.pay === "card" ? "💳 Click" : "💵 Naqd"}</span><b>${fmt(o.total)}</b></div>`,
                   )
                   .join("") +
                 "</details>",
@@ -884,7 +890,16 @@
       );
       function sumCard() {
         const s = D.stats || { count: 0, total: 0, fees: 0 };
-        return `<div class="card ord"><div class="kv"><span>Yetkazgan buyurtmalar</span><b>${s.count} ta</b></div><div class="kv"><span>Umumiy summa</span><b>${fmt(s.total)}</b></div><div class="kv"><span>Shundan yetkazib berish haqi</span><b>${fmt(s.fees)}</b></div></div>`;
+        return `<div class="card ord"><div class="kv"><span>Yetkazgan buyurtmalar</span><b>${s.count} ta</b></div><div class="kv"><span>Umumiy summa</span><b>${fmt(s.total)}</b></div><div class="kv"><span>Shundan yetkazib berish haqi</span><b>${fmt(s.fees)}</b></div></div>` + payBlocks(s, "card ord");
+      }
+      // To'lov turi bo'yicha alohida: naqd va Click (karta). Click yetkazish haqi ish yakunida hisob-kitob qilinadi.
+      function payBlocks(x, cls) {
+        const c = x.cash || { count: 0, total: 0, fees: 0 },
+          k = x.card || { count: 0, total: 0, fees: 0 };
+        return (
+          `<div class="${cls}"><div class="kv"><b>💵 Naqd to'lovlar</b><b>${c.count} ta</b></div><div class="kv"><span>Naqd summa (mijozdan olingan)</span><b>${fmt(c.total)}</b></div><div class="kv"><span>Shundan yetkazib berish haqi</span><b>${fmt(c.fees)}</b></div></div>` +
+          `<div class="${cls}"><div class="kv"><b>💳 Click (karta) to'lovlar</b><b>${k.count} ta</b></div><div class="kv"><span>Click orqali to'langan summa</span><b>${fmt(k.total)}</b></div><div class="kv"><span>Click orqali to'langan yetkazish haqi <small>(hisob-kitob qilinadi)</small></span><b>${fmt(k.fees)}</b></div></div>`
+        );
       }
       $("#tNew").onclick = () => {
         tab = "new";
