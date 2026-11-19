@@ -722,6 +722,142 @@
         display: none !important;
       }
     button[aria-busy="true"]{opacity:.75;cursor:wait}
+
+      /* ===== Sozlamalar (Ish vaqti) bo'limi: kartalar, maydonlar va tugmalar ===== */
+      #shop:not([hidden]) {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+        gap: 16px;
+        align-items: start;
+      }
+      #shop .card {
+        margin: 0 !important;
+      }
+      #shop .card:first-child {
+        grid-column: 1 / -1;
+      }
+      #shop .card h3 {
+        font-size: 18px;
+        margin: 0 0 10px;
+      }
+      #shop .card > p.muted {
+        line-height: 1.45;
+        font-size: 14px;
+      }
+      #shop label {
+        display: block;
+        font-size: 13px;
+        font-weight: 800;
+        letter-spacing: 0.02em;
+        text-transform: uppercase;
+        color: var(--mute);
+        margin: 14px 0 0;
+      }
+      #shop label br {
+        display: none;
+      }
+      #shop input[type="text"],
+      #shop input[type="tel"],
+      #shop input[type="time"],
+      #shop input[type="datetime-local"],
+      #shop textarea {
+        display: block;
+        width: 100%;
+        margin-top: 6px;
+        padding: 12px 14px;
+        border: 2px solid var(--ink);
+        border-radius: 12px;
+        background: var(--bg);
+        color: var(--ink);
+        font: inherit;
+        font-size: 16px;
+        font-weight: 600;
+        text-transform: none;
+        letter-spacing: 0;
+        box-shadow: inset 2px 2px 0 rgba(0, 0, 0, 0.08);
+        transition:
+          border-color 0.15s,
+          box-shadow 0.15s;
+      }
+      #shop textarea {
+        resize: vertical;
+        min-height: 84px;
+        line-height: 1.4;
+      }
+      #shop input[type="time"] {
+        font-size: 22px;
+        font-weight: 800;
+        text-align: center;
+        font-variant-numeric: tabular-nums;
+      }
+      #shop ::placeholder {
+        color: var(--mute);
+        opacity: 0.65;
+        font-weight: 500;
+      }
+      #shop input:hover,
+      #shop textarea:hover {
+        border-color: var(--red);
+      }
+      #shop input:focus,
+      #shop textarea:focus {
+        outline: none;
+        border-color: var(--mustard);
+        box-shadow: 0 0 0 4px rgba(242, 183, 5, 0.35);
+      }
+      :root[data-theme="dark"] #shop input,
+      :root[data-theme="dark"] #shop textarea {
+        color-scheme: dark;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme="light"]) #shop input,
+        :root:not([data-theme="light"]) #shop textarea {
+          color-scheme: dark;
+        }
+      }
+      #shop .act {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: flex-end;
+      }
+      #shop .act label {
+        flex: 1 1 140px;
+        margin-top: 8px;
+      }
+      #shop .act button {
+        padding: 12px 22px;
+        border: 2px solid var(--ink);
+        border-radius: 12px;
+        background: var(--mustard);
+        color: #2b1a10;
+        font-weight: 800;
+        font-size: 15px;
+        cursor: pointer;
+        box-shadow: 3px 3px 0 var(--sh);
+        transition:
+          transform 0.1s,
+          box-shadow 0.1s;
+      }
+      #shop .act button:hover {
+        transform: translate(-1px, -1px);
+        box-shadow: 4px 4px 0 var(--sh);
+      }
+      #shop .act button:active {
+        transform: translate(3px, 3px);
+        box-shadow: 0 0 0 var(--sh);
+      }
+      #shop .act button:disabled {
+        opacity: 0.5;
+        cursor: wait;
+      }
+      #shop #pauseBot[data-v="1"] {
+        background: var(--red);
+        color: #fff;
+      }
+      #shop .shopform {
+        margin-top: 4px;
+      }
 </style>
   </head>
   <body>
