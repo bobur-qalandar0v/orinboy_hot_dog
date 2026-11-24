@@ -18,6 +18,10 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
     <style>
+      .carpin { background: none; border: 0; }
+      .carpin .cn { position: absolute; left: 0; bottom: 14px; transform: translateX(-50%); white-space: nowrap; background: #fffdf6; color: #3a1c0d; border: 2px solid #3a1c0d; border-radius: 8px; padding: 2px 8px; font: 800 12px/1.3 system-ui, sans-serif; box-shadow: 2px 2px 0 #3a1c0d; }
+      .carpin .ci { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); font-size: 30px; line-height: 1; filter: drop-shadow(0 2px 2px rgba(0,0,0,.45)); }
+      .carpin .ci.old { filter: grayscale(1) drop-shadow(0 2px 2px rgba(0,0,0,.45)); opacity: .75; }
       :root {
         --bg: #fff1c2;
         --card: #fffdf6;
@@ -2116,9 +2120,13 @@
           const a = locAge(c), txt = `<b>${esc(c.name)}</b><br>${esc(c.car_model)} ${esc(c.car_number)}<br>${locDot(a)} ${locText(a)}${activeOf(c) ? "<br>📦 " + esc(activeOf(c)) : ""}`;
           seen.add(c.id);
           pts.push([c.lat, c.lng]);
-          if (CMARK[c.id]) CMARK[c.id].setLatLng([c.lat, c.lng]).setPopupContent(txt);
-          else CMARK[c.id] = L.marker([c.lat, c.lng]).addTo(CMAP).bindPopup(txt);
-          CMARK[c.id].bindTooltip(c.name, { permanent: true, direction: "top", offset: [-15, -10] });
+          const icon = L.divIcon({
+            className: "carpin",
+            html: `<div class="cn">${esc(c.name)}</div><div class="ci${a !== null && a < 120 ? "" : " old"}">🚗</div>`,
+            iconSize: [0, 0],
+          });
+          if (CMARK[c.id]) CMARK[c.id].setLatLng([c.lat, c.lng]).setIcon(icon).setPopupContent(txt);
+          else CMARK[c.id] = L.marker([c.lat, c.lng], { icon }).addTo(CMAP).bindPopup(txt);
         });
         Object.keys(CMARK).forEach((id) => { if (!seen.has(+id)) { CMAP.removeLayer(CMARK[id]); delete CMARK[id]; } });
         if (pts.length && !cfit) { cfit = true; CMAP.fitBounds(pts, { maxZoom: 15, padding: [30, 30] }); }
