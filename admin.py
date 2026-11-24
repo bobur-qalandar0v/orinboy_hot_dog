@@ -383,7 +383,7 @@ def make_app(db, bot, password, kb_for):
     async def orders(request):
         data = rows(
             "SELECT o.id, o.created, o.items, o.total, o.pay, o.address, o.comment, o.status, o.rating, o.zone, o.delivery, "
-            "COALESCE(o.printed, 0) AS printed, " + PICKUP_SQL + " AS pickup, u.name, u.phone, c.name AS courier, c.phone AS courier_phone, "
+            "COALESCE(o.printed, 0) AS printed, COALESCE(o.delivery_cash, 0) AS delivery_cash, o.pay_note, " + PICKUP_SQL + " AS pickup, u.name, u.phone, c.name AS courier, c.phone AS courier_phone, "
             "TRIM(COALESCE(c.car_model,'') || ' ' || COALESCE(c.car_number,'')) AS car "
             "FROM orders o LEFT JOIN users u ON u.id = o.uid LEFT JOIN couriers c ON c.id = o.courier_id "
             "ORDER BY o.id DESC LIMIT 200")

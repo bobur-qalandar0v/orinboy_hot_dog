@@ -799,7 +799,7 @@
   <div class="info">📍 ${o.address && o.address !== o.zone ? esc(o.address) + (o.zone ? ` · <b>${esc(o.zone)}</b>` : "") : `<b>${esc(o.zone || o.address)}</b>`}</div>
   <ul>${o.items.map((i) => `<li>${esc(i.name)} × ${i.qty}</li>`).join("")}</ul>
   ${o.comment ? `<div class="info">💬 ${esc(o.comment)}</div>` : ""}
-  <div class="pay">${cash ? `💵 Naqd: mijozdan <b>${fmt(o.total)}</b> olinadi` : "💳 Karta orqali to'lanadi (admin tasdiqlaydi)"}${o.delivery ? ` · yetkazib berish ${fmt(o.delivery)} kiradi` : ""}</div>
+  <div class="pay">${cash ? `💵 Naqd: mijozdan <b>${fmt(o.total)}</b> olinadi` : o.delivery_cash ? `💵 Naqd: mijozdan faqat yetkazish haqi <b>${fmt(o.delivery)}</b> olinadi <small>(mahsulotlar kartada to'langan)</small>` : "💳 Karta orqali to'lanadi (admin tasdiqlaydi)"}${o.delivery && !o.delivery_cash ? ` · yetkazib berish ${fmt(o.delivery)} kiradi` : ""}</div>${o.pay_note ? `<div class="pay">💬 Mijoz izohi: ${esc(o.pay_note)}</div>` : ""}
   ${num ? actionFor(o) : ""}</article>`;
       }
       // Yangi: hali hech kim olmagan buyurtmalar. Faol: shu dastavchik olgan (yoki admin tayyorlanmoqda qilib qo'ygan, egasiz) buyurtmalar.
@@ -862,7 +862,7 @@
                 x.orders
                   .map(
                     (o) =>
-                      `<div class="kv sm"><span>#${o.id} · ${esc(o.time)}${o.zone ? " · " + esc(o.zone) : ""} · ${o.pay === "card" ? "💳 Click" : "💵 Naqd"}</span><b>${fmt(o.total)}</b></div>`,
+                      `<div class="kv sm"><span>#${o.id} · ${esc(o.time)}${o.zone ? " · " + esc(o.zone) : ""} · ${o.pay === "card" ? (o.dcash ? "💳 Click + 💵 yetkazish naqd" : "💳 Click") : "💵 Naqd"}</span><b>${fmt(o.total)}</b></div>`,
                   )
                   .join("") +
                 "</details>",
@@ -895,10 +895,12 @@
       // To'lov turi bo'yicha alohida: naqd va Click (karta). Click yetkazish haqi ish yakunida hisob-kitob qilinadi.
       function payBlocks(x, cls) {
         const c = x.cash || { count: 0, total: 0, fees: 0 },
-          k = x.card || { count: 0, total: 0, fees: 0 };
+          k = x.card || { count: 0, total: 0, fees: 0 },
+          kc = k.cash || 0, // kartada to'langan, lekin yetkazish haqi dastavchikka naqd berilgan
+          kf = k.fees_card != null ? k.fees_card : k.fees;
         return (
-          `<div class="${cls}"><div class="kv"><b>💵 Naqd to'lovlar</b><b>${c.count} ta</b></div><div class="kv"><span>Naqd summa (mijozdan olingan)</span><b>${fmt(c.total)}</b></div><div class="kv"><span>Shundan yetkazib berish haqi</span><b>${fmt(c.fees)}</b></div></div>` +
-          `<div class="${cls}"><div class="kv"><b>💳 Click (karta) to'lovlar</b><b>${k.count} ta</b></div><div class="kv"><span>Click orqali to'langan summa</span><b>${fmt(k.total)}</b></div><div class="kv"><span>Click orqali to'langan yetkazish haqi <small>(hisob-kitob qilinadi)</small></span><b>${fmt(k.fees)}</b></div></div>`
+          `<div class="${cls}"><div class="kv"><b>💵 Naqd to'lovlar</b><b>${c.count} ta</b></div><div class="kv"><span>Naqd summa (mijozdan olingan)</span><b>${fmt(c.total + kc)}</b></div><div class="kv"><span>Shundan yetkazib berish haqi</span><b>${fmt(c.fees + kc)}</b></div>${kc ? `<div class="kv sm"><span>Shu jumladan kartali buyurtmalarning naqd yetkazish haqi</span><b>${fmt(kc)}</b></div>` : ""}</div>` +
+          `<div class="${cls}"><div class="kv"><b>💳 Click (karta) to'lovlar</b><b>${k.count} ta</b></div><div class="kv"><span>Click orqali to'langan summa</span><b>${fmt(k.total - kc)}</b></div><div class="kv"><span>Click orqali to'langan yetkazish haqi <small>(hisob-kitob qilinadi)</small></span><b>${fmt(kf)}</b></div></div>`
         );
       }
       $("#tNew").onclick = () => {
