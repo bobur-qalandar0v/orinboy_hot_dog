@@ -1882,6 +1882,7 @@
           )
           .join("");
         // Chek turi: zal (stol), saboy yoki botdan kelgan yetkazish buyurtmasi
+        const saboyN = (o.items || []).filter((i) => /🥡 saboy/.test(i.name || "")).reduce((a, i) => a + i.qty, 0);
         const dl = o.kind === "delivery",
           tk = o.kind === "takeaway",
           pk = dl && (o.pickup || /^Olib ketadi/.test(o.address || "")); // olib ketadi: yetkazish yo'q
@@ -1901,7 +1902,7 @@
         const foot = dl
           ? `<div>To'lov: ${o.pay === "card" ? "KARTA" : "NAQD"}</div>${o.courier ? `<div>Dastavchik: ${esc(o.courier)}</div>` : ""}`
           : `<div>Ofitsant: ${esc(o.waiter || "")}</div>`;
-        return `<!doctype html><meta charset="utf-8"><style>@page{size:80mm auto;margin:3mm}body{width:72mm;font:13px/1.35 monospace;margin:0}h1{font-size:18px;text-align:center;margin:0 0 4px}.c{text-align:center}table{width:100%;border-collapse:collapse}td{padding:1px 0;vertical-align:top}.nm{font-weight:bold;padding-top:5px}.q{padding-bottom:2px}.r{text-align:right;white-space:nowrap;padding-left:6px}hr{border:0;border-top:1px dashed #000;margin:6px 0}.t{font-size:16px;font-weight:bold}</style><h1>O'RINBOY HOTDOG</h1><div class="c">${head}</div>${who}<div class="c">${esc(o.created)}</div><hr><table>${rows}</table><hr>${fees}<table><tr class="t"><td>JAMI</td><td class="r">${money(o.total)} so'm</td></tr></table>${o.comment ? `<hr><div>Izoh: ${esc(o.comment)}</div>` : ""}<hr>${foot}<div class="c">${o.bill ? "UMUMIY HISOB" : "Buyurtma #" + o.id}</div>`;
+        return `<!doctype html><meta charset="utf-8"><style>@page{size:80mm auto;margin:3mm}body{width:72mm;font:13px/1.35 monospace;margin:0}h1{font-size:18px;text-align:center;margin:0 0 4px}.c{text-align:center}table{width:100%;border-collapse:collapse}td{padding:1px 0;vertical-align:top}.nm{font-weight:bold;padding-top:5px}.q{padding-bottom:2px}.r{text-align:right;white-space:nowrap;padding-left:6px}hr{border:0;border-top:1px dashed #000;margin:6px 0}.t{font-size:16px;font-weight:bold}</style><h1>O'RINBOY HOTDOG</h1><div class="c">${head}</div>${who}<div class="c">${esc(o.created)}</div><hr><table>${rows}</table>${saboyN ? `<hr><div class="c"><b>🥡 SABOY: ${saboyN} ta (olib ketadi)</b></div>` : ""}<hr>${fees}<table><tr class="t"><td>JAMI</td><td class="r">${money(o.total)} so'm</td></tr></table>${o.comment ? `<hr><div>Izoh: ${esc(o.comment)}</div>` : ""}<hr>${foot}<div class="c">${o.bill ? "UMUMIY HISOB" : "Buyurtma #" + o.id}</div>`;
       }
       // Chop etish oynasi yopilgach hal bo'ladigan va'da qaytaradi (chop etildimi yoki bekor qilindimi, brauzer aytmaydi)
       function printOrder(o) {

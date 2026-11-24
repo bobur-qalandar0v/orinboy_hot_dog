@@ -1012,6 +1012,7 @@
         } catch (e) {}
         cart = {};
         patirW = {};
+        saboyW = {};
         view("auth");
       }
       $("#logout").onclick = logout;
@@ -1328,6 +1329,7 @@
         cur = t;
         cart = {};
         patirW = {};
+        saboyW = {};
         try {
           MENU = await api("/api/menu");
         } catch (e) {
@@ -1412,6 +1414,7 @@
         const tk = cur && cur.takeaway;
         cart = {};
         patirW = {};
+        saboyW = {};
         view("tables");
         if (tk) setWtab("s");
         loadTables();
@@ -1420,10 +1423,27 @@
       // ---------- yuborish ----------
       // Patir: har bir taomdan nechtasi patirga pishsin (ichimliklarga tegishli emas)
       let patirW = {},
+        saboyW = {}, // stol buyurtmasida: har taomdan nechtasi saboy (olib ketadi)
         PATIRLEFT = null; // qolgan patir (null: cheklanmagan)
       const pLeftW = () => (PATIRLEFT == null ? Infinity : PATIRLEFT);
       const pTotalW = () => Object.keys(patirW).reduce((a, id) => a + pqW(id), 0);
       const hasBread = (m) => !/ichimlik/i.test(m.cat || "");
+      const sqW = (id) => Math.max(0, Math.min(saboyW[id] || 0, cart[id] || 0));
+      // Serverdagi bread_lines bilan bir xil: patir birinchi, saboy oxirgi birliklarga tushadi
+      function previewLines(m) {
+        const q = cart[m.id] || 0,
+          p = hasBread(m) ? pqW(m.id) : 0,
+          s = sqW(m.id),
+          c = {};
+        for (let i = 0; i < q; i++) {
+          const k = (i < p ? "p" : "-") + (i >= q - s ? "s" : "-");
+          c[k] = (c[k] || 0) + 1;
+        }
+        return [["--", ""], ["p-", " 🥖 patirga"], ["-s", " 🥡 saboy"], ["ps", " 🥖 patirga 🥡 saboy"]]
+          .filter(([k]) => c[k])
+          .map(([k, t]) => `${c[k]} × ${t ? t.trim() : "zalda"}`)
+          .join(" · ");
+      }
       const pqW = (id) => Math.max(0, Math.min(patirW[id] || 0, cart[id] || 0));
       function renderDcl() {
         for (const id of Object.keys(patirW)) {
@@ -1435,16 +1455,26 @@
             .map(
               (m) =>
                 `<div class="row2"><span>${esc(m.name)} × ${cart[m.id]}</span><b>${fmt(m.price * cart[m.id])}</b></div>` +
+                (cur && cur.takeaway
+                  ? ""
+                  : `<div class="row2 pat"><span>🥡 Saboy <small>(olib ketadi)</small></span><span class="pst"><button type="button" data-ws="${m.id}" data-d="-1">−</button><b>${sqW(m.id)}</b><button type="button" data-ws="${m.id}" data-d="1">+</button></span></div>`) +
                 (hasBread(m) && pLeftW() === 0
                   ? `<div class="row2 pat"><span>🥖 Patir hozircha tugagan</span></div>`
                   : hasBread(m)
                   ? `<div class="row2 pat"><span>🥖 Patirga <small>(qolgani bulochkada)</small></span><span class="pst"><button type="button" data-wp="${m.id}" data-d="-1">−</button><b>${pqW(m.id)}</b><button type="button" data-wp="${m.id}" data-d="1"${pTotalW() >= pLeftW() ? " disabled" : ""}>+</button></span></div>`
-                  : ""),
+                  : "") +
+                (sqW(m.id) && !(cur && cur.takeaway) ? `<div class="row2 pat"><small>→ ${esc(previewLines(m))}</small></div>` : ""),
             )
             .join("") +
           `<div class="row2" style="font-size:19px"><b>Jami</b><b>${fmt(total())}</b></div>`;
       }
       $("#dcl").onclick = (e) => {
+        const sb = e.target.closest("[data-ws]");
+        if (sb) {
+          const sid = sb.dataset.ws;
+          saboyW[sid] = Math.max(0, Math.min(cart[sid] || 0, sqW(sid) + Number(sb.dataset.d)));
+          return renderDcl();
+        }
         const b = e.target.closest("[data-wp]");
         if (!b) return;
         const id = b.dataset.wp;
@@ -1500,7 +1530,7 @@
         btn.disabled = true;
         try {
           const tk = !!cur.takeaway,
-            items = Object.entries(cart).map(([id, qty]) => ({ id, qty, patir: pqW(id) }));
+            items = Object.entries(cart).map(([id, qty]) => ({ id, qty, patir: pqW(id), saboy: tk ? 0 : sqW(id) }));
           if (tk) {
             const cv = $("#cust").value.trim(),
               dg = cv.replace(/\D/g, "");
@@ -1535,6 +1565,7 @@
           $("#cust").value = "";
           cart = {};
         patirW = {};
+        saboyW = {};
           toast(
             tk
               ? "✅ Saboy buyurtma oshxonaga yuborildi"
@@ -1551,6 +1582,7 @@
               $("#dc").close();
               cart = {};
         patirW = {};
+        saboyW = {};
               view("tables");
               loadTables();
             }, 1600);

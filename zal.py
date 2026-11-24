@@ -1284,21 +1284,40 @@ PATIR = " 🥖 patirga"
 PATIR_OLD = " 🥖 patirda"   # eski buyurtmalar nomi (statistikada birlashtirish uchun)
 
 
-def bread_lines(m, qty, patir):
-    """Taom qatori: oddiy bulochkadagi va patirga pishadigan qismi alohida qatorga ajratiladi (narx bir xil).
-    Ichimliklarga patir qo'llanmaydi."""
+SABOY = " 🥡 saboy"
+
+
+def _n(v):
     try:
-        p = int(patir or 0)
+        return int(v or 0)
     except (TypeError, ValueError):
-        p = 0
+        return 0
+
+
+def bread_lines(m, qty, patir, saboy=0):
+    """Taom qatori: oddiy / patirga / saboy (olib ketadi) qismlari alohida qatorga ajratiladi (narx bir xil, paket haqi yo'q).
+    Ichimliklarga patir qo'llanmaydi. Patir birinchi, saboy oxirgi birliklarga tushadi: ikkalasi birga faqat
+    p + s > qty bo'lganda majburan kesishadi."""
+    p, s = _n(patir), _n(saboy)
     if "ichimlik" in str(m.get("cat", "")).lower():
         p = 0
-    p = max(0, min(qty, p))
+    p, s = max(0, min(qty, p)), max(0, min(qty, s))
+    cnt = {}
+    for i in range(qty):
+        key = (i < p, i >= qty - s)
+        cnt[key] = cnt.get(key, 0) + 1
     out = []
-    if qty - p > 0:
-        out.append({"id": m["id"], "name": m["name"], "qty": qty - p, "price": m["price"]})
-    if p > 0:
-        out.append({"id": m["id"], "name": m["name"] + PATIR, "qty": p, "price": m["price"], "patir": True})
+    for (pt, sb) in ((False, False), (True, False), (False, True), (True, True)):
+        n = cnt.get((pt, sb), 0)
+        if not n:
+            continue
+        line = {"id": m["id"], "name": m["name"] + (PATIR if pt else "") + (SABOY if sb else ""),
+                "qty": n, "price": m["price"]}
+        if pt:
+            line["patir"] = True
+        if sb:
+            line["saboy"] = True
+        out.append(line)
     return out
 
 
@@ -1338,7 +1357,7 @@ def add_routes(app, db, now, get_menu, guard, shop_status=None, bonus_config=Non
             msg += f" {st['note']}"
         return err(msg, 403)
 
-    def read_items(d):
+    def read_items(d, allow_saboy=False):
         """Buyurtma qatorlarini menyu bilan solishtirib tekshiradi. Qaytaradi: (items, xato_javobi)."""
         menu = {m["id"]: m for m in get_menu(db)}
         raw = d.get("items")
@@ -1353,7 +1372,7 @@ def add_routes(app, db, now, get_menu, guard, shop_status=None, bonus_config=Non
                 return None, err("Menyu o'zgargan. Sahifani yangilab, qaytadan tanlang.")
             if m["sold"]:
                 return None, err(f"«{m['name']}» hozircha tugagan.", 409)
-            items.extend(bread_lines(m, qty, it.get("patir")))
+            items.extend(bread_lines(m, qty, it.get("patir"), it.get("saboy") if allow_saboy else 0))
         if not items:
             return None, err("Buyurtma bo'sh.")
         return items, None
@@ -1465,7 +1484,7 @@ def add_routes(app, db, now, get_menu, guard, shop_status=None, bonus_config=Non
         t = db.execute("SELECT id, zal, number, seats, guests FROM zal_tables WHERE id=?", (d.get("table_id"),)).fetchone()
         if not t:
             return err("Stol topilmadi.", 404)
-        items, bad = read_items(d)
+        items, bad = read_items(d, allow_saboy=True)
         if bad:
             return bad
         prev = db.execute("SELECT items FROM zal_orders WHERE table_id=? AND status='open'", (t[0],)).fetchall()

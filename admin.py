@@ -355,7 +355,7 @@ def make_app(db, bot, password, kb_for):
             for it in json.loads(o["items"]):
                 if it.get("id") == "bonus":  # bepul bonus «eng ko'p sotilgan» ro'yxatga kirmaydi
                     continue
-                p = prods.setdefault(it["name"].replace(zal.PATIR, "").replace(zal.PATIR_OLD, ""), {"name": it["name"].replace(zal.PATIR, "").replace(zal.PATIR_OLD, ""), "qty": 0, "revenue": 0})
+                p = prods.setdefault(it["name"].replace(zal.PATIR, "").replace(zal.PATIR_OLD, "").replace(zal.SABOY, ""), {"name": it["name"].replace(zal.PATIR, "").replace(zal.PATIR_OLD, "").replace(zal.SABOY, ""), "qty": 0, "revenue": 0})
                 p["qty"] += it["qty"]
                 p["revenue"] += it["qty"] * it["price"]
         n = len(orders)
