@@ -486,6 +486,7 @@ db.execute("CREATE TABLE IF NOT EXISTS orders(id INTEGER PRIMARY KEY AUTOINCREME
 for _sql in ("ALTER TABLE orders ADD COLUMN rating INTEGER", "ALTER TABLE orders ADD COLUMN zone TEXT",
              "ALTER TABLE orders ADD COLUMN zone_id TEXT", "ALTER TABLE orders ADD COLUMN delivery INTEGER DEFAULT 0", "ALTER TABLE orders ADD COLUMN ahead INTEGER",
              "ALTER TABLE orders ADD COLUMN printed INTEGER DEFAULT 0", "ALTER TABLE orders ADD COLUMN done_at TEXT",
+             "ALTER TABLE orders ADD COLUMN delivery_cash INTEGER DEFAULT 0", "ALTER TABLE orders ADD COLUMN pay_note TEXT",
              "ALTER TABLE users ADD COLUMN zone TEXT", "ALTER TABLE users ADD COLUMN registered TEXT"):
     try:
         db.execute(_sql)
@@ -751,7 +752,8 @@ async def on_order(message: Message):
             await message.answer("Bu buyurtmani endi o'zgartirib bo'lmaydi (tayyorlanmoqda yoki yakunlangan).",
                                  reply_markup=kb_for(uid))
             return
-        db.execute("UPDATE orders SET items=?, total=?, pay=?, address=?, comment=?, zone=?, zone_id=?, delivery=? WHERE id=?",
+        db.execute("UPDATE orders SET items=?, total=?, pay=?, address=?, comment=?, zone=?, zone_id=?, delivery=?, "
+                   "delivery_cash=0 WHERE id=?",
                    (items_json, total, pay, address, comment, zone["name"], zone["id"], delivery, edit_id))
         admin.patir_change(db, -need_new)
         oid, title = edit_id, "✏️ Buyurtma o'zgartirildi"
@@ -801,6 +803,13 @@ async def on_order(message: Message):
             parse_mode="HTML", reply_markup=kb_for(uid))
     elif by_card:
         await message.answer(f"{done}\n{queue_text}\nOperator karta raqamini yuboradi.", reply_markup=kb_for(uid))
+    if by_card and delivery > 0 and not zone["pickup"]:
+        # Mijoz faqat taom pulini kartaga o'tkazib, yetkazish pulini dastavchikka naqd bermoqchi bo'lishi mumkin
+        await message.answer(
+            "🚚 Yetkazib berish pulini ({}) dastavchikka naqd bermoqchimisiz? Unda kartaga faqat mahsulotlar ({}) o'tkaziladi.".format(
+                fmt(delivery), fmt(subtotal)),
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+                InlineKeyboardButton(text="💵 Yetkazishni dastavchikka naqd beraman", callback_data=f"dcash:{oid}:1")]]))
     else:
         await message.answer(f"{done}\n{queue_text}\nJami: {fmt(total)}{'' if zone['pickup'] else ' (yetkazib berish bilan)'}. Tez orada bog'lanamiz. "
                              "Tayyorlash boshlanmaguncha buyurtmani tahrirlashingiz yoki bekor qilishingiz mumkin.",
@@ -894,6 +903,39 @@ async def on_rate(cb: CallbackQuery):
     await cb.answer()
 
 
+# ---- Yetkazish pulini dastavchikka naqd berish (karta to'lovida) ----
+@dp.callback_query(F.data.startswith("dcash:"))
+async def on_delivery_cash(cb: CallbackQuery):
+    _, oid, flag = cb.data.split(":")
+    oid, on = int(oid), flag == "1"
+    uid = cb.from_user.id
+    o = db.execute("SELECT uid, status, pay, total, delivery FROM orders WHERE id=?", (oid,)).fetchone()
+    if not o or o[0] != uid or o[2] != "card" or o[1] not in ("new", "cooking"):
+        await cb.answer("Bu buyurtma uchun o'zgartirib bo'lmaydi.", show_alert=True)
+        return
+    total, delivery = o[3], o[4] or 0
+    pay_amount = total - delivery if on else total
+    db.execute("UPDATE orders SET delivery_cash=? WHERE id=?", (1 if on else 0, oid))
+    db.execute("INSERT OR REPLACE INTO pending VALUES (?,?)", (uid, pay_amount))
+    db.commit()
+    if on:
+        text = (f"✅ Yaxshi. Kartaga faqat <b>{fmt(pay_amount)}</b> (mahsulotlar) o'tkazing.\n"
+                f"Yetkazib berish pulini ({fmt(delivery)}) dastavchikka naqd berasiz.")
+        btn = InlineKeyboardButton(text="↩️ Hammasini kartaga o'tkazaman", callback_data=f"dcash:{oid}:0")
+    else:
+        text = f"Hammasi kartada: <b>{fmt(total)}</b> (yetkazib berish bilan) o'tkazing."
+        btn = InlineKeyboardButton(text="💵 Yetkazishni dastavchikka naqd beraman", callback_data=f"dcash:{oid}:1")
+    await cb.message.edit_text(text, parse_mode="HTML", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[btn]]))
+    await cb.answer()
+    try:
+        await bot.send_message(ADMIN_CHAT_ID,
+                               (f"💵 Buyurtma #{oid}: mijoz yetkazish pulini ({fmt(delivery)}) dastavchikka naqd beradi, "
+                                f"kartaga faqat {fmt(pay_amount)} o'tkazadi." if on else
+                                f"💳 Buyurtma #{oid}: mijoz fikrini o'zgartirdi, hammasini ({fmt(total)}) kartaga o'tkazadi."))
+    except Exception:
+        pass
+
+
 # ---- To'lov cheki ----
 @dp.message(F.photo | F.document)
 async def on_receipt(message: Message):
@@ -903,7 +945,13 @@ async def on_receipt(message: Message):
     uid = message.from_user.id
     row = db.execute("SELECT total FROM pending WHERE uid=?", (uid,)).fetchone()
     expected = f"\nKutilgan summa: {fmt(row[0])}" if row else ""
+    note = (message.caption or "").strip()[:300]  # mijoz chek tagiga yozgan izoh (masalan: «dastavka pulini dastavchikka beraman»)
     caption = f"🧾 To'lov cheki\nIsm: {user['name']}\nTelefon: {user['phone']}{expected}"
+    if note:
+        caption += f"\n💬 Mijoz izohi: {note}"
+        db.execute("UPDATE orders SET pay_note=? WHERE id=(SELECT MAX(id) FROM orders WHERE uid=? AND pay='card' "
+                   "AND status != 'cancelled')", (note, uid))
+        db.commit()
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="✅ Tasdiqlash", callback_data=f"pay:ok:{uid}")],
         [InlineKeyboardButton(text="⚠️ Kam to'langan", callback_data=f"pay:less:{uid}"),

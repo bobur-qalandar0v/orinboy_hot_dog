@@ -29,7 +29,8 @@ def init_courier(db):
         status TEXT DEFAULT 'pending', created TEXT);
     CREATE TABLE IF NOT EXISTS courier_sessions(token TEXT PRIMARY KEY, courier_id INTEGER, created INTEGER);
     """)
-    for _sql in ("ALTER TABLE orders ADD COLUMN courier_id INTEGER", "ALTER TABLE orders ADD COLUMN done_at TEXT"):
+    for _sql in ("ALTER TABLE orders ADD COLUMN courier_id INTEGER", "ALTER TABLE orders ADD COLUMN done_at TEXT",
+                 "ALTER TABLE orders ADD COLUMN delivery_cash INTEGER DEFAULT 0", "ALTER TABLE orders ADD COLUMN pay_note TEXT"):
         try:
             db.execute(_sql)
         except sqlite3.OperationalError:
@@ -116,25 +117,40 @@ def add_routes(app, db, now, change_status, guard):
         db.commit()
         return web.json_response({"token": token, "name": r[1]})
 
-    SELECT = ("SELECT o.id, o.created, o.items, o.total, o.delivery, o.pay, o.address, o.zone, o.comment, o.status, "
+    SELECT = ("SELECT o.id, o.created, o.items, o.total, o.delivery, o.pay, COALESCE(o.delivery_cash, 0) AS delivery_cash, o.pay_note, o.address, o.zone, o.comment, o.status, "
               "o.courier_id, u.name AS customer, u.phone AS phone, c.name AS courier, "
               "TRIM(COALESCE(c.car_model,'') || ' ' || COALESCE(c.car_number,'')) AS car "
               "FROM orders o LEFT JOIN users u ON u.id = o.uid LEFT JOIN couriers c ON c.id = o.courier_id "
               "LEFT JOIN zones z ON z.id = o.zone_id ")
+
+    def pay_split(total, fee, pay, dcash):
+        """(tur, dastavchik naqd olgan summa, naqd olingan yetkazish haqi).
+        Naqd buyurtma: hammasi naqd. Karta: pul restoranga tushgan; faqat mijoz yetkazish pulini
+        dastavchikka naqd bergan bo'lsa (delivery_cash), shu summa dastavchikning qo'lida."""
+        if pay != "card":
+            return "cash", total, fee
+        if dcash:
+            return "card", fee, fee
+        return "card", 0, 0
 
     def c_stats(cid):
         """Dastavchik yetkazgan (done/completed) barcha buyurtmalar: soni, umumiy summa, shundan yetkazish haqi."""
         out = {"count": 0, "total": 0, "fees": 0,
                "cash": {"count": 0, "total": 0, "fees": 0}, "card": {"count": 0, "total": 0, "fees": 0}}
         # To'lov turi bo'yicha: naqd (mijozdan dastavchik oladi) va Click/karta (pul restoranga tushgan, yetkazish haqi keyin hisob-kitob qilinadi)
-        for pay, n, total, fees in db.execute(
-                "SELECT CASE WHEN pay='card' THEN 'card' ELSE 'cash' END, COUNT(*), COALESCE(SUM(total), 0), "
-                "COALESCE(SUM(delivery), 0) FROM orders WHERE courier_id=? AND status IN ('done','completed') GROUP BY 1",
-                (cid,)).fetchall():
-            out[pay] = {"count": n, "total": total, "fees": fees}
-            out["count"] += n
-            out["total"] += total
-            out["fees"] += fees
+        for total, fee, pay, dcash in db.execute(
+                "SELECT total, COALESCE(delivery, 0), pay, COALESCE(delivery_cash, 0) FROM orders "
+                "WHERE courier_id=? AND status IN ('done','completed')", (cid,)).fetchall():
+            kind, cash_part, fee_cash = pay_split(total or 0, fee, pay, dcash)
+            b = out[kind]
+            b["count"] += 1
+            b["total"] += total or 0
+            b["fees"] += fee
+            b["cash"] = b.get("cash", 0) + cash_part                    # dastavchik mijozdan naqd olgan summa
+            b["fees_card"] = b.get("fees_card", 0) + (fee - fee_cash)  # Click orqali to'langan yetkazish haqi (hisob-kitob)
+            out["count"] += 1
+            out["total"] += total or 0
+            out["fees"] += fee
         return out
 
     async def c_history(request):
@@ -142,11 +158,11 @@ def add_routes(app, db, now, change_status, guard):
         me = courier_from(request)
         rs = db.execute(
             "SELECT o.id, COALESCE(o.done_at, o.created) AS t, COALESCE(o.zone, ''), o.total, COALESCE(o.delivery, 0), "
-            "CASE WHEN o.pay='card' THEN 'card' ELSE 'cash' END "
+            "CASE WHEN o.pay='card' THEN 'card' ELSE 'cash' END, COALESCE(o.delivery_cash, 0) "
             "FROM orders o WHERE o.courier_id=? AND o.status IN ('done','completed') "
             "ORDER BY COALESCE(o.done_at, o.created) DESC, o.id DESC LIMIT 3000", (me["id"],)).fetchall()
         days, idx = [], {}
-        for oid, t, zone, total, fee, pay in rs:
+        for oid, t, zone, total, fee, pay, dcash in rs:
             d = str(t)[:10]
             if d not in idx:
                 idx[d] = {"date": d, "count": 0, "total": 0, "fees": 0, "orders": [],
@@ -156,10 +172,15 @@ def add_routes(app, db, now, change_status, guard):
             x["count"] += 1
             x["total"] += total or 0
             x["fees"] += fee or 0
-            x[pay]["count"] += 1
-            x[pay]["total"] += total or 0
-            x[pay]["fees"] += fee or 0
-            x["orders"].append({"id": oid, "time": str(t)[11:16], "zone": zone, "total": total or 0, "fee": fee or 0, "pay": pay})
+            _, cash_part, fee_cash = pay_split(total or 0, fee or 0, pay, dcash)
+            b = x[pay]
+            b["count"] += 1
+            b["total"] += total or 0
+            b["fees"] += fee or 0
+            b["cash"] = b.get("cash", 0) + cash_part
+            b["fees_card"] = b.get("fees_card", 0) + (fee or 0) - fee_cash
+            x["orders"].append({"id": oid, "time": str(t)[11:16], "zone": zone, "total": total or 0, "fee": fee or 0,
+                                "pay": pay, "dcash": dcash})
         return web.json_response({"today": now().strftime("%Y-%m-%d"), "days": days})
 
     async def c_orders(request):
@@ -239,8 +260,10 @@ def add_routes(app, db, now, change_status, guard):
             "AS delivered, (SELECT COALESCE(SUM(o.total), 0) FROM orders o WHERE o.courier_id = c.id "
             "AND o.status IN ('done','completed')) AS earned, "
             "(SELECT COALESCE(SUM(o.delivery), 0) FROM orders o WHERE o.courier_id = c.id AND o.pay = 'card' "
+            "AND COALESCE(o.delivery_cash, 0) = 0 "
             "AND o.status IN ('done','completed')) AS card_fees, "
-            "(SELECT COALESCE(SUM(o.total), 0) FROM orders o WHERE o.courier_id = c.id AND COALESCE(o.pay, '') != 'card' "
+            "(SELECT COALESCE(SUM(CASE WHEN COALESCE(o.pay, '') != 'card' THEN o.total ELSE COALESCE(o.delivery, 0) END), 0) "
+            "FROM orders o WHERE o.courier_id = c.id AND (COALESCE(o.pay, '') != 'card' OR COALESCE(o.delivery_cash, 0) = 1) "
             "AND o.status IN ('done','completed')) AS cash_total FROM couriers c ORDER BY c.id DESC"))
 
     async def a_status(request):
