@@ -15,6 +15,8 @@
       href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700;800&display=swap"
       rel="stylesheet"
     />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
     <style>
       :root {
         --bg: #fff1c2;
@@ -2093,8 +2095,43 @@
         c.password
           ? `<span class="pw">${cpwShown.has(c.id) ? esc(c.password) : "••••••••"}</span> <button class="eye" data-ceye="${c.id}" aria-label="Parolni ko'rsatish yoki yashirish">${cpwShown.has(c.id) ? "🙈" : "👁"}</button>`
           : '<span class="muted">—</span>';
+      // ---- Dastavchiklar jonli xaritasi (OpenStreetMap + Leaflet). Xarita bir marta quriladi, har yangilanishda faqat belgilar almashadi ----
+      let CMAP = null, CMAPEL = null, CMARK = {}, cfit = false;
+      const ST_UZ = { new: "yangi", cooking: "tayyorlanmoqda", delivering: "yo'lda" };
+      const locAge = (c) => (c.loc_at ? Math.max(0, Math.round(Date.now() / 1000 - c.loc_at)) : null);
+      const locText = (a) => (a === null ? "joylashuv yo'q" : a < 90 ? "hozir (jonli)" : a < 3600 ? `${Math.round(a / 60)} daqiqa oldin` : a < 86400 ? `${Math.round(a / 3600)} soat oldin` : "kecha yoki undan oldin");
+      const locDot = (a) => (a === null ? "⚪" : a < 120 ? "🟢" : a < 900 ? "🟡" : "🔴");
+      const activeOf = (c) => (c.active ? c.active.split(",").map((x) => { const [id, st] = x.split(":"); return `#${id} (${ST_UZ[st] || st})`; }).join(", ") : "");
+      function drawMap() {
+        const wrap = $("#cmapwrap");
+        if (!wrap) return;
+        if (!window.L) { wrap.innerHTML = '<p class="muted">Xarita yuklanmadi (internet yoki unpkg.com). Pastdagi jadvaldagi «Xaritada» havolalari ishlaydi.</p>'; return; }
+        if (!CMAPEL) { CMAPEL = document.createElement("div"); CMAPEL.style.cssText = "height:360px;border-radius:12px;border:2px solid var(--line,#3a1c0d)"; }
+        wrap.innerHTML = "";
+        wrap.appendChild(CMAPEL);
+        if (!CMAP) CMAP = L.map(CMAPEL).setView([41.31, 69.28], 11), L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(CMAP);
+        CMAP.invalidateSize();
+        const pts = [], seen = new Set();
+        C.filter((c) => c.lat != null && c.lng != null && c.status === "approved").forEach((c) => {
+          const a = locAge(c), txt = `<b>${esc(c.name)}</b><br>${esc(c.car_model)} ${esc(c.car_number)}<br>${locDot(a)} ${locText(a)}${activeOf(c) ? "<br>📦 " + esc(activeOf(c)) : ""}`;
+          seen.add(c.id);
+          pts.push([c.lat, c.lng]);
+          if (CMARK[c.id]) CMARK[c.id].setLatLng([c.lat, c.lng]).setPopupContent(txt);
+          else CMARK[c.id] = L.marker([c.lat, c.lng]).addTo(CMAP).bindPopup(txt);
+          CMARK[c.id].bindTooltip(c.name, { permanent: true, direction: "top", offset: [-15, -10] });
+        });
+        Object.keys(CMARK).forEach((id) => { if (!seen.has(+id)) { CMAP.removeLayer(CMARK[id]); delete CMARK[id]; } });
+        if (pts.length && !cfit) { cfit = true; CMAP.fitBounds(pts, { maxZoom: 15, padding: [30, 30] }); }
+      }
+      function liveCard() {
+        const L2 = C.filter((c) => c.status === "approved");
+        return `<div class="card"><h3 style="margin:0 0 8px">📍 Dastavchiklar hozir qayerda</h3><div id="cmapwrap"></div><div class="tablewrap" style="margin-top:10px"><table><tr><th>Dastavchik</th><th>Joylashuv</th><th>Hozirgi buyurtmalari</th><th></th></tr>` +
+          (L2.map((c) => { const a = locAge(c); return `<tr><td><b>${esc(c.name)}</b><br><span class="muted">${esc(c.phone)}</span></td><td>${locDot(a)} ${locText(a)}</td><td>${activeOf(c) ? esc(activeOf(c)) : '<span class="muted">bo\'sh</span>'}</td><td>${c.lat != null ? `<a href="https://www.google.com/maps?q=${c.lat},${c.lng}" target="_blank" rel="noopener">Xaritada</a>` : ""}</td></tr>`; }).join("") ||
+            '<tr><td colspan="4" class="muted">Tasdiqlangan dastavchik yo\'q.</td></tr>') +
+          `</table></div><p class="muted">Joylashuv dastavchik sayti (/courier) ochiq va telefon ekrani yoqiq paytida yangilanadi.</p></div>`;
+      }
       function couriersTab() {
-        $("#couriers").innerHTML =
+        $("#couriers").innerHTML = liveCard() +
           `<div class="card"><div class="tablewrap"><table><tr><th>Dastavchik</th><th>Telefon</th><th>Mashina</th><th>Login</th><th>Parol</th><th>Ro'yxatdan o'tgan</th><th>Yetkazgan</th><th>Umumiy summa</th><th>Holat</th><th></th></tr>` +
           (C.map(
             (c) =>
@@ -2102,6 +2139,7 @@
           ).join("") ||
             '<tr><td colspan="10" class="muted">Dastavchik yo\'q.</td></tr>') +
           `</table></div></div><p class="muted">Dastavchiklar shu manzil orqali kiradi: <b>${esc(location.origin)}/courier</b></p>`;
+        drawMap();
       }
       $("#couriers").onclick = async (e) => {
         const t = e.target.closest("button");

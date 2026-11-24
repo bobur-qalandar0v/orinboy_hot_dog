@@ -30,7 +30,9 @@ def init_courier(db):
     CREATE TABLE IF NOT EXISTS courier_sessions(token TEXT PRIMARY KEY, courier_id INTEGER, created INTEGER);
     """)
     for _sql in ("ALTER TABLE orders ADD COLUMN courier_id INTEGER", "ALTER TABLE orders ADD COLUMN done_at TEXT",
-                 "ALTER TABLE orders ADD COLUMN delivery_cash INTEGER DEFAULT 0", "ALTER TABLE orders ADD COLUMN pay_note TEXT"):
+                 "ALTER TABLE orders ADD COLUMN delivery_cash INTEGER DEFAULT 0", "ALTER TABLE orders ADD COLUMN pay_note TEXT",
+                 "ALTER TABLE couriers ADD COLUMN lat REAL", "ALTER TABLE couriers ADD COLUMN lng REAL",
+                 "ALTER TABLE couriers ADD COLUMN acc REAL", "ALTER TABLE couriers ADD COLUMN loc_at INTEGER"):
         try:
             db.execute(_sql)
         except sqlite3.OperationalError:
@@ -217,6 +219,21 @@ def add_routes(app, db, now, change_status, guard):
             "(SELECT COUNT(*) FROM orders o WHERE o.courier_id = couriers.id AND o.status IN ('done','completed')) "
             "AS delivered FROM couriers WHERE id=?", (me["id"],))[0])
 
+    async def c_location(request):
+        """Dastavchik sayti (ochiq turganda) joylashuvini yuboradi. Admin xaritada ko'radi."""
+        me = courier_from(request)
+        d = await request.json()
+        try:
+            lat, lng = float(d.get("lat")), float(d.get("lng"))
+            acc = float(d.get("acc") or 0)
+        except (TypeError, ValueError):
+            return err("Joylashuv noto'g'ri.")
+        if not (-90 <= lat <= 90 and -180 <= lng <= 180):
+            return err("Joylashuv noto'g'ri.")
+        db.execute("UPDATE couriers SET lat=?, lng=?, acc=?, loc_at=? WHERE id=?", (lat, lng, acc, int(time.time()), me["id"]))
+        db.commit()
+        return web.json_response({"ok": True})
+
     async def c_me_update(request):
         me = courier_from(request)
         d = await request.json()
@@ -256,7 +273,10 @@ def add_routes(app, db, now, change_status, guard):
     async def a_couriers(request):
         return web.json_response(rows(
             "SELECT c.id, c.name, c.phone, c.login, c.pw_plain AS password, c.car_number, c.car_model, c.status, "
-            "c.created, (SELECT COUNT(*) FROM orders o WHERE o.courier_id = c.id AND o.status IN ('done','completed')) "
+            "c.created, c.lat, c.lng, c.acc, c.loc_at, "
+            "(SELECT group_concat(o.id || ':' || o.status) FROM orders o WHERE o.courier_id = c.id "
+            "AND o.status IN ('new','cooking','delivering')) AS active, "
+            "(SELECT COUNT(*) FROM orders o WHERE o.courier_id = c.id AND o.status IN ('done','completed')) "
             "AS delivered, (SELECT COALESCE(SUM(o.total), 0) FROM orders o WHERE o.courier_id = c.id "
             "AND o.status IN ('done','completed')) AS earned, "
             "(SELECT COALESCE(SUM(o.delivery), 0) FROM orders o WHERE o.courier_id = c.id AND o.pay = 'card' "
@@ -311,6 +331,7 @@ def add_routes(app, db, now, change_status, guard):
         web.post("/api/c/orders/{id}/status", c_status),
         web.get("/api/c/me", c_me),
         web.post("/api/c/me", c_me_update),
+        web.post("/api/c/location", c_location),
         web.post("/api/c/password", c_password),
         web.get("/api/couriers", a_couriers),
         web.post("/api/couriers/{id}/status", a_status),
