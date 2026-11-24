@@ -506,3 +506,19 @@ select {
 .pst{display:inline-flex;align-items:center;gap:10px}
 .pst button{width:34px;height:34px;border-radius:50%;border:2px solid currentColor;background:transparent;color:inherit;font:inherit;font-size:20px;line-height:1;cursor:pointer}
 .pst b{min-width:18px;text-align:center}
+
+/* Birinchi marta kirganlar uchun ko'rsatma */
+.helpbtn { margin-top: 10px; background: transparent; border: 2px solid var(--line); color: var(--ink); border-radius: 999px; padding: 8px 14px; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
+.tour { position: fixed; inset: 0; z-index: 60; background: rgba(30, 15, 8, .68); display: flex; align-items: center; justify-content: center; padding: 16px; }
+.tour[hidden] { display: none; }
+.tour .box { background: var(--card); color: var(--ink); border: 3px solid var(--line); box-shadow: 5px 5px 0 var(--sh); border-radius: 18px; width: 100%; max-width: 380px; padding: 22px 20px 18px; text-align: center; }
+.tour .ico { font-size: 54px; line-height: 1.1; }
+.tour h3 { margin: 10px 0 6px; font-size: 20px; }
+.tour p { margin: 0; color: var(--mute); font-size: 15px; line-height: 1.45; }
+.tour p b { color: var(--ink); }
+.tour .dots { display: flex; justify-content: center; gap: 6px; margin: 16px 0 14px; }
+.tour .dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--line); opacity: .25; }
+.tour .dots i.on { opacity: 1; background: var(--red); }
+.tour .row { display: flex; gap: 10px; }
+.tour button { flex: 1; font: inherit; font-weight: 800; font-size: 16px; padding: 12px; border-radius: 12px; border: 2px solid var(--line); cursor: pointer; background: var(--mustard); color: #3a1c0d; }
+.tour button.skip { flex: 0 0 auto; background: transparent; color: var(--mute); border-color: transparent; font-weight: 600; font-size: 14px; }

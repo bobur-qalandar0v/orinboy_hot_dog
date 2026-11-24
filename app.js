@@ -260,3 +260,35 @@ document.addEventListener("click", draftLater, true);
 document.addEventListener("input", draftLater, true);
 document.addEventListener("visibilitychange", draftSave);
 addEventListener("pagehide", draftSave);
+// ---- Birinchi marta kirgan mijozga qisqa ko'rsatma (bir marta chiqadi; "❓" tugmasi bilan qayta ochiladi) ----
+const TOUR_KEY = "orinboy_tour_v1";
+const TOUR = [
+    { i: "👋", t: "O'rinboy Hotdog'ga xush kelibsiz!", d: "Buyurtma berish juda oson. Keling, 30 soniyada ko'rsatamiz." },
+    { i: "🌭", t: "1. Taom tanlang", d: "Har bir taom yonidagi <b>+</b> tugmasi bilan savatga qo'shing. <b>−</b> bilan kamaytiring. Pastda umumiy summa chiqib turadi." },
+    { i: "🥖", t: "2. Patirga yoki bulochkada", d: "Savatga o'tganingizda xotdogni <b>patirga</b> solib berishni tanlashingiz mumkin. Nechtasi patirga bo'lsa, shuncha belgilang, qolgani oddiy bulochkada bo'ladi." },
+    { i: "🎁", t: "3. Bonus sovg'a", d: "Buyurtma summasi belgilangan miqdorga yetsa, <b>bepul sovg'a</b> tanlash chiqadi. Savat sahifasida bittasini tanlang." },
+    { i: "🚚", t: "4. Yetkazish yoki olib ketish", d: "Hududingizni tanlang, manzilni yozing. Xohlasangiz o'zingiz kelib olib ketishingiz ham mumkin." },
+    { i: "💳", t: "5. To'lov", d: "<b>Naqd</b>: dastavchikka berasiz. <b>Karta</b>: bot kartani yuboradi, chekni rasmini botga tashlaysiz. Yetkazish pulini dastavchikka naqd bermoqchi bo'lsangiz, botdagi tugmani bosing." },
+    { i: "✅", t: "Tayyor!", d: "Buyurtma yuborilgach, bot holatini xabar qilib turadi. Savatni o'zgartirish ham mumkin. Yoqimli ishtaha!" },
+];
+(() => {
+    const box = $("tour"); if (!box) return;
+    let n = 0;
+    const seen = () => { try { return localStorage.getItem(TOUR_KEY) === "1"; } catch (e) { return false; } };
+    const mark = () => { try { localStorage.setItem(TOUR_KEY, "1"); } catch (e) { } };
+    const close = () => { box.hidden = true; mark(); };
+    function draw() {
+        const s = TOUR[n], last = n === TOUR.length - 1;
+        box.innerHTML = `<div class="box"><div class="ico">${s.i}</div><h3 id="tourT">${s.t}</h3><p>${s.d}</p>` +
+            `<div class="dots">${TOUR.map((_, k) => `<i class="${k === n ? "on" : ""}"></i>`).join("")}</div>` +
+            `<div class="row">${last ? "" : `<button type="button" class="skip" data-a="skip">O'tkazib yuborish</button>`}<button type="button" data-a="next">${last ? "Boshladik!" : "Tushundim, keyingisi"}</button></div></div>`;
+    }
+    box.addEventListener("click", e => {
+        const a = e.target.closest("button") && e.target.closest("button").dataset.a;
+        if (a === "skip") close();
+        else if (a === "next") { if (n >= TOUR.length - 1) close(); else { n++; draw(); } }
+    });
+    const open = () => { n = 0; draw(); box.hidden = false; };
+    $("helpbtn").addEventListener("click", open);
+    if (!seen() && !EDIT) setTimeout(open, 600);
+})();
