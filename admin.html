@@ -18,6 +18,9 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
     <style>
+      .chead { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 4px; }
+      .chead h3 { margin: 0; }
+      .chead button { font: inherit; font-weight: 700; font-size: 14px; padding: 8px 12px; border-radius: 10px; border: 2px solid var(--line, #3a1c0d); background: transparent; color: inherit; cursor: pointer; }
       .carpin { background: none; border: 0; }
       .carpin .cn { position: absolute; left: 0; bottom: 14px; transform: translateX(-50%); white-space: nowrap; background: #fffdf6; color: #3a1c0d; border: 2px solid #3a1c0d; border-radius: 8px; padding: 2px 8px; font: 800 12px/1.3 system-ui, sans-serif; box-shadow: 2px 2px 0 #3a1c0d; }
       .carpin .ci { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); font-size: 30px; line-height: 1; filter: drop-shadow(0 2px 2px rgba(0,0,0,.45)); }
@@ -2369,7 +2372,7 @@
           (cats
             .map(
               (c) =>
-                `<div class="card order"><h3>${esc(c)}</h3>` +
+                `<div class="card order"><div class="chead"><h3>${esc(c)}</h3><button data-csold="${cats.indexOf(c)}">${M.filter((m) => m.cat === c).every((m) => m.sold) ? "✅ Hammasi yana bor" : "⛔ Hammasi tugadi"}</button></div>` +
                 M.filter((m) => m.cat === c)
                   .map(
                     (m) =>
@@ -2414,6 +2417,19 @@
               toast("O'chirildi");
               load();
             }
+            return;
+          }
+          if (t.dataset.csold !== undefined) {
+            const c = [...new Set(M.map((m) => m.cat))][+t.dataset.csold],
+              ns = !M.filter((m) => m.cat === c).every((m) => m.sold);
+            if (!confirm(`«${c}» bo'limidagi barcha taomlar ${ns ? "TUGADI" : "YANA BOR"} deb belgilansinmi?`)) return;
+            const notify = confirm(
+              (ns ? "Mijozlarga botda «bo'lim tugadi» deb xabar yuborilsinmi?" : "Mijozlarga «yana bor» deb xabar yuborilsinmi?") +
+                "\n\nOK — yuborish, Bekor — xabarsiz saqlash",
+            );
+            const r = await post("/api/menu-cat/sold", "POST", { cat: c, sold: ns, notify });
+            toast(notify ? `Xabar ${r.sent} ta mijozga yuborilmoqda` : "Saqlandi");
+            load();
             return;
           }
           if (t.dataset.sold) {

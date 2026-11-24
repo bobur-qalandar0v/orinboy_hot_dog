@@ -558,6 +558,26 @@ def make_app(db, bot, password, kb_for):
             t.add_done_callback(tasks.discard)
         return web.json_response({"ok": True, "sent": sent})
 
+    async def menu_cat_sold(request):
+        """Bo'limdagi barcha taomlarni birdan «tugadi» / «yana bor» qilish (masalan, mangal tugadi)."""
+        guard(request)
+        d = await request.json()
+        cat, sold = str(d.get("cat", "")), 1 if d.get("sold") else 0
+        n = db.execute("SELECT COUNT(*) FROM menu WHERE cat=?", (cat,)).fetchone()[0]
+        if not n:
+            raise web.HTTPNotFound()
+        db.execute("UPDATE menu SET sold=? WHERE cat=?", (sold, cat))
+        db.commit()
+        sent = 0
+        if d.get("notify"):
+            text = (f"⚠️ Kechirasiz, «{cat}» bo'limi hozircha tugadi." if sold
+                    else f"✅ «{cat}» bo'limi yana bor! Buyurtma berishingiz mumkin. 🌭")
+            sent = db.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+            t = asyncio.create_task(broadcast(text))
+            tasks.add(t)
+            t.add_done_callback(tasks.discard)
+        return web.json_response({"ok": True, "sent": sent, "count": n})
+
     async def status_public(request):
         st = shop_status(db)
         return web.json_response({"open": st["bot_open"], "hours": st["hours"], "note": st["note"],
@@ -651,6 +671,7 @@ def make_app(db, bot, password, kb_for):
         web.put("/api/menu/{id}", menu_update),
         web.delete("/api/menu/{id}", menu_delete),
         web.post("/api/menu/{id}/sold", menu_sold),
+        web.post("/api/menu-cat/sold", menu_cat_sold),
         web.get("/api/zones", zones_list),
         web.get("/api/status", status_public),
         web.get("/api/shop", shop_get),
