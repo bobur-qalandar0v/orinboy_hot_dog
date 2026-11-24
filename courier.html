@@ -208,6 +208,8 @@
       .msg.ok {
         color: var(--green);
       }
+      .geohint { font-size: 13px; color: #85685a; margin: 0 0 10px; line-height: 1.4; }
+      .geobar { background: #fde4e1; color: #8a1c10; border: 2px solid #d62f1f; border-radius: 12px; padding: 10px 12px; margin: 0 0 12px; font-size: 14px; font-weight: 600; }
       .top {
         position: sticky;
         top: env(safe-area-inset-top, 0px);
@@ -458,6 +460,7 @@
             <button class="btn" type="submit">Kirish</button>
           </form>
           <form id="fr" hidden>
+            <p class="geohint">📍 Ro'yxatdan o'tganda brauzer joylashuvga ruxsat so'raydi. «Ruxsat berish»ni bosing: restoran buyurtma paytida sizni xaritada ko'radi.</p>
             <label for="r1">Ism va familiya</label
             ><input id="r1" autocomplete="name" required />
             <label for="r2">Telefon raqami (+998 dan keyin 9 ta raqam)</label
@@ -513,6 +516,7 @@
           </div>
           <button id="logout">Chiqish</button>
         </div>
+        <div id="geobar" class="geobar" hidden></div>
         <div class="chips">
           <button id="tNew" class="on">Yangi</button
           ><button id="tAct">Faol</button
@@ -632,11 +636,39 @@
         clearTimeout(toast.t);
         toast.t = setTimeout(() => e.classList.remove("show"), 2800);
       }
+      // Joylashuv: sayt ochiq turganda admin dastavchikni xaritada ko'radi (brauzer faqat sahifa ochiq paytda yuboradi)
+      let geoId = null, geoLast = 0;
+      function geoMsg(t) {
+        const b = $("#geobar");
+        b.hidden = !t;
+        b.textContent = t || "";
+      }
+      function geoStart() {
+        if (geoId !== null) return;
+        if (!navigator.geolocation) return geoMsg("📍 Bu brauzer joylashuvni qo'llab-quvvatlamaydi. Admin sizni xaritada ko'ra olmaydi.");
+        geoId = navigator.geolocation.watchPosition(
+          (p) => {
+            geoMsg("");
+            const t = Date.now();
+            if (t - geoLast < 15000) return;
+            geoLast = t;
+            api("/api/c/location", { method: "POST", body: JSON.stringify({ lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy }) }).catch(() => {});
+          },
+          (e) => geoMsg(e.code === 1 ? "📍 Joylashuvga ruxsat berilmagan. Brauzer sozlamasidan ruxsat bering, aks holda admin sizni ko'rmaydi." : "📍 Joylashuv aniqlanmadi. GPS yoqilganini tekshiring."),
+          { enableHighAccuracy: true, maximumAge: 10000, timeout: 30000 }
+        );
+      }
+      function geoStop() {
+        if (geoId !== null && navigator.geolocation) navigator.geolocation.clearWatch(geoId);
+        geoId = null;
+        geoLast = 0;
+      }
       function show(v) {
         $("#auth").hidden = v !== "auth";
         $("#app").hidden = v !== "app";
         clearInterval(poll);
         if (v === "app") poll = setInterval(load, 10000);
+        v === "app" ? geoStart() : geoStop();
       }
 
       document.querySelectorAll(".tabs button").forEach(
@@ -725,6 +757,8 @@
       $("#fr").onsubmit = async (e) => {
         e.preventDefault();
         const done = busy(e, "Yuborilmoqda…");
+        // Ro'yxatdan o'tishda joylashuvga ruxsat so'raymiz (rad etilsa ham ariza yuboriladi, lekin kirgach ogohlantiriladi)
+        if (navigator.geolocation) await new Promise((res) => navigator.geolocation.getCurrentPosition(res, res, { timeout: 15000 }));
         try {
           await api("/api/c/register", {
             method: "POST",
