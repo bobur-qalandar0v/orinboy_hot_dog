@@ -563,7 +563,7 @@ def kb_for(uid):
                 [KeyboardButton(text="❌ Buyurtmani bekor qilish")]]
     else:
         rows = [[KeyboardButton(text="🌭 Buyurtma berish", web_app=app)]]
-    rows.append([KeyboardButton(text="👤 Ma'lumotlarim")])
+    rows.append([KeyboardButton(text="🧾 Buyurtmalarim"), KeyboardButton(text="👤 Ma'lumotlarim")])
     return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True)
 
 
@@ -597,6 +597,7 @@ MENU_COMMANDS = [
     BotCommand(command="start", description="🌭 Botni ishga tushirish"),
     BotCommand(command="buyurtma", description="🛒 Buyurtma berish"),
     BotCommand(command="bekor", description="❌ Buyurtmani bekor qilish"),
+    BotCommand(command="buyurtmalarim", description="🧾 Buyurtmalarim va tarix"),
     BotCommand(command="aloqa", description="📞 Aloqa va ish vaqti"),
     BotCommand(command="profil", description="👤 Mening ma'lumotlarim"),
     BotCommand(command="yangilash", description="✏️ Ma'lumotlarni o'zgartirish"),
@@ -792,17 +793,22 @@ async def on_order(message: Message):
     await bot.send_message(ADMIN_CHAT_ID, text)
 
     done = "Buyurtmangiz o'zgartirildi! ✏️" if edit_id else "Buyurtmangiz qabul qilindi! 🌭"
+    mine = "🧾 Buyurtmangiz:\n" + lines + "\n"
     queue_text = ("Sizdan oldin buyurtma yo'q, navbat sizniki! 🎉" if ahead == 0
                   else f"Sizdan oldin {ahead} ta buyurtma bor, siz {ahead + 1}-chisiz.")
     if by_card and CARD_NUMBER:
         await message.answer(
-            f"{done}\n{queue_text}\n\nMahsulotlar: {fmt(subtotal)}\n{fee_label}: {fmt(delivery)}\nTo'lov summasi: <b>{fmt(total)}</b>\n"
+            f"{done}\n{queue_text}\n\n{html.escape(mine)}\nMahsulotlar: {fmt(subtotal)}\n{fee_label}: {fmt(delivery)}\nTo'lov summasi: <b>{fmt(total)}</b>\n"
             f"Karta raqami (bosib nusxalang):\n<code>{html.escape(CARD_NUMBER)}</code>\n"
             f"Karta egasi: {html.escape(CARD_OWNER)}\n\n"
             "Pulni o'tkazgach, to'lov chekini (skrinshot) shu chatga yuboring.",
             parse_mode="HTML", reply_markup=kb_for(uid))
     elif by_card:
-        await message.answer(f"{done}\n{queue_text}\nOperator karta raqamini yuboradi.", reply_markup=kb_for(uid))
+        await message.answer(f"{done}\n{queue_text}\n\n{mine}\nOperator karta raqamini yuboradi.", reply_markup=kb_for(uid))
+    else:
+        await message.answer(f"{done}\n{queue_text}\n\n{mine}\nJami: {fmt(total)}{'' if zone['pickup'] else ' (yetkazib berish bilan)'}. Tez orada bog'lanamiz. "
+                             "Tayyorlash boshlanmaguncha buyurtmani tahrirlashingiz yoki bekor qilishingiz mumkin.",
+                             reply_markup=kb_for(uid))
     if by_card and delivery > 0 and not zone["pickup"]:
         # Mijoz faqat taom pulini kartaga o'tkazib, yetkazish pulini dastavchikka naqd bermoqchi bo'lishi mumkin
         await message.answer(
@@ -810,11 +816,60 @@ async def on_order(message: Message):
                 fmt(delivery), fmt(subtotal)),
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
                 InlineKeyboardButton(text="💵 Yetkazishni dastavchikka naqd beraman", callback_data=f"dcash:{oid}:1")]]))
-    else:
-        await message.answer(f"{done}\n{queue_text}\nJami: {fmt(total)}{'' if zone['pickup'] else ' (yetkazib berish bilan)'}. Tez orada bog'lanamiz. "
-                             "Tayyorlash boshlanmaguncha buyurtmani tahrirlashingiz yoki bekor qilishingiz mumkin.",
-                             reply_markup=kb_for(uid))
 
+
+# ---- Mijozning buyurtmalari va tarixi ----
+ORDER_STATUS_UZ = {"new": "🆕 Qabul qilindi", "cooking": "👨‍🍳 Tayyorlanmoqda", "delivering": "🛵 Yo'lda",
+                   "done": "✅ Yetkazildi", "completed": "✅ Yakunlandi", "cancelled": "❌ Bekor qilingan"}
+MON_UZ = ["yan", "fev", "mar", "apr", "may", "iyun", "iyul", "avg", "sen", "okt", "noy", "dek"]
+
+
+def order_when(created):
+    try:
+        d = datetime.strptime(str(created)[:19], "%Y-%m-%d %H:%M:%S")
+        return f"{d.day}-{MON_UZ[d.month - 1]}, {d:%H:%M}"
+    except Exception:
+        return str(created)[:16]
+
+
+def order_card(r, full=True):
+    """r: (id, created, items, total, pay, address, status, delivery, delivery_cash)"""
+    oid, created, items, total, pay, address, status, delivery, dcash = r
+    try:
+        items = json.loads(items)
+    except Exception:
+        items = []
+    head = f"🧾 Buyurtma #{oid} · {order_when(created)}\n{ORDER_STATUS_UZ.get(status, status)}"
+    if full:
+        body = "\n".join(f"• {i['name']} × {i['qty']} = {fmt(i['price'] * i['qty'])}" for i in items)
+        pay_t = "💵 Naqd" if pay != "card" else ("💳 Karta (yetkazish naqd)" if dcash else "💳 Karta")
+        fee = f"\nYetkazib berish: {fmt(delivery)}" if delivery else ""
+        return f"{head}\n{body}{fee}\nJami: {fmt(total)} · {pay_t}"
+    short = ", ".join(f"{i['name']} ×{i['qty']}" for i in items)
+    return f"{head}\n{short}\nJami: {fmt(total)}"
+
+
+@dp.message(Command("buyurtmalarim"))
+@dp.message(F.text == "🧾 Buyurtmalarim")
+async def my_orders(message: Message):
+    uid = message.from_user.id
+    if not get_user(uid):
+        await message.answer("Avval /start bosib ro'yxatdan o'ting.")
+        return
+    cols = "id, created, items, total, pay, address, status, COALESCE(delivery, 0), COALESCE(delivery_cash, 0)"
+    cur = db.execute(f"SELECT {cols} FROM orders WHERE uid=? AND status IN ('new','cooking','delivering') ORDER BY id DESC",
+                     (uid,)).fetchall()
+    old = db.execute(f"SELECT {cols} FROM orders WHERE uid=? AND status NOT IN ('new','cooking','delivering') "
+                     "ORDER BY id DESC LIMIT 10", (uid,)).fetchall()
+    if not cur and not old:
+        await message.answer("Hali buyurtma bermagansiz. Pastdagi «🌭 Buyurtma berish» tugmasini bosing.", reply_markup=kb_for(uid))
+        return
+    if cur:
+        await message.answer("📍 Hozirgi buyurtmangiz:\n\n" + "\n\n".join(order_card(r) for r in cur), reply_markup=kb_for(uid))
+    else:
+        await message.answer("Hozir faol buyurtmangiz yo'q.", reply_markup=kb_for(uid))
+    if old:
+        await message.answer("📜 Oldingi buyurtmalar (oxirgi 10 ta):\n\n" + "\n\n".join(order_card(r, full=False) for r in old))
 
 # ---- Mijoz buyurtmani bekor qilishi ----
 @dp.message(Command("bekor"))
